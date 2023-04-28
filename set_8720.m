@@ -16,6 +16,7 @@ function set_8720( inst_obj , set_mode , set_value )
 % No match
         otherwise
             warning('No matching mode');
+            %test
     end
 
 end
