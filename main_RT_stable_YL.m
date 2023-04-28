@@ -1,6 +1,7 @@
 clear all;
 instrreset;
 
+
 lockin.obj = gpib('ni',0,12); fopen(lockin.obj);
 lockin.name = 7260;
 
