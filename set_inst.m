@@ -28,6 +28,8 @@ function set_inst( inst , set_mode , set_value )
             set_6032(inst_obj,set_mode,set_value);
         case {'motor'}
             set_motor(inst_obj,set_mode,set_value);
+        case {'daq','DAQ'}
+            set_daq(inst_obj,set_mode,set_value);
         case{0,'NULL'}
             
         otherwise
