@@ -1,5 +1,6 @@
-function set_daq( inst_obj , set_mode , set_value )
-
+function set_daq( inst , set_mode , set_value )
+    inst_obj = inst.obj;
+    field_factor = inst.field_factor;
 
     switch set_mode
         case {'V'}
@@ -10,7 +11,7 @@ function set_daq( inst_obj , set_mode , set_value )
                 write(inst_obj, set_value);
             end
         case {'field IP'} % in-plane field
-            volts = set_value/daq.field_factor; % convert field to voltage
+            volts = set_value/field_factor; % convert field to voltage
             try
                 write(inst_obj, volts);
             catch

@@ -21,7 +21,7 @@ function output = read_inst( inst , read_mode )
         case {'6032',6032}
             output = read_6032(inst_obj,read_mode);
         case {'daq','DAQ'}
-            output = read_daq(inst_obj,read_mode);
+            output = read_daq(inst,read_mode);
         case {0,'NULL'}
             output=0;
         otherwise

@@ -44,6 +44,10 @@ function set_motor( inst_obj , set_mode , set_value )
             writeline(inst_obj,num2str(angle_diff)); % write angle setting to serial port
             read(inst_obj,1,"uint8"); % pause until motor finished rotating
             flush(inst_obj)
+        case {'Angle_simple'}
+            writeline(inst_obj,num2str(set_value)); % write angle setting to serial port
+            read(inst_obj,1,"uint8"); % pause until motor finished rotating
+            flush(inst_obj)
         case {'Initialize'}
             angle_current = set_value;
             save("_motor_current_angle","angle_current");            
