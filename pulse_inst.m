@@ -48,6 +48,10 @@ function pulse_inst( inst , set_mode , set_value , t_duration )
             set_6032(inst_obj,set_mode,set_value);
             pause(t_duration);
             set_6032(inst_obj,set_mode,0);
+        case {'daq','DAQ'}
+            set_daq(inst,set_mode,set_value);
+            pause(t_duration);
+            set_daq(inst,set_mode,0);
         case{0,'NULL'}
             
         otherwise
