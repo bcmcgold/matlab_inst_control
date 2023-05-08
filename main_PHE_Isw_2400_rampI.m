@@ -27,7 +27,7 @@ output.read_field = 150; % Oe
 output.n_readings = 10;
 output.wait_between_readings = 10e-3; % s
 
-Isw_points = linspace(-4.5,4.5,51); % mA
+Isw_points = linspace(-5,5,51); % mA
 Isw_points = [Isw_points fliplr(Isw_points)]; % instead of one-way sweep, make hysteresis loop
 
 % motor starts along y-axis. Rotate to x-axis to apply reset field
