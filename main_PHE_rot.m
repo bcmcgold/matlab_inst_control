@@ -15,16 +15,16 @@ voltmeter = sourcemeter;
 
 field.obj = daq("mcc");
 field.name = 'daq';
-field.field_factor = 340;
+field.field_factor = 300;
 
 %%
 output.chip = "S2_QW_";
-output.device = "5-1";
-output.field = 800; % Oe
+output.device = "5-3";
+output.field = 400; % Oe
 output.channel_R = 1179; % Ohms
 output.read_current = 0.5/output.channel_R*1000; % mA
 output.angle_step = 10; % degrees
-output.wait_after_field = 3; % s
+output.wait_after_field = 2; % s
 output.n_readings = 10;
 output.wait_between_readings = 90e-3; % s
 

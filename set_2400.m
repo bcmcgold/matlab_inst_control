@@ -25,6 +25,20 @@ function set_2400( inst_obj , set_mode , set_value )
         case {'V'}
             temp_str = num2str(set_value);
             fprintf(inst_obj,[':SOUR:VOLT:LEV ' temp_str]);
+        case {'4-wire sense'}
+            switch set_value
+                case {1,'True','true','ON','on','On'}
+                    fprintf(inst_obj,[':SYST:RSEN ' 'ON']);
+                case {0,'False','false','OFF','off','Off'}
+                    fprintf(inst_obj,[':SYST:RSEN ' 'OFF']);
+            end
+        case {'Output'}
+            switch set_value
+                case {1,'True','true','ON','on','On'}
+                    fprintf(inst_obj,[':OUTPut ' 'ON']);
+                case {0,'False','false','OFF','off','Off'}
+                    fprintf(inst_obj,[':OUTPut ' 'OFF']);
+            end
         otherwise
             warning('No matching mode');
     end
