@@ -1,3 +1,4 @@
+% random comment
 function pulse_inst( inst , set_mode , set_value , t_duration )
 %find the corresponding instrument
     inst_name = inst.name;
