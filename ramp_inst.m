@@ -1,3 +1,4 @@
+% another random comment again
 function ramp_inst(inst,ramp_mode,ramp_end,ramp_time)
     inst_name = inst.name;
     inst_obj = inst.obj;
