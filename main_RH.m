@@ -22,7 +22,7 @@ output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
 
-H_points = -250:5:-50; % Oe
+H_points = -170:0.5:-140; % Oe
 H_points = [H_points fliplr(H_points)]; % instead of one-way sweep, make hysteresis loop
 
 % automatically set up data folders
