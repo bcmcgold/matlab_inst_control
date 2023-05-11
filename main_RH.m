@@ -14,15 +14,15 @@ field.field_factor = 300;
 
 %%
 output.chip = "S2302153_AG_H5";
-output.device = "7-6";
+output.device = "7-8";
 output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 416; % Ohms
-output.read_current = 0.01; % mA
+output.channel_R = 441; % Ohms
+output.read_current = 0.02; % mA
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
 
-H_points = -170:0.5:-140; % Oe
+H_points = -130:0.5:-90; % Oe
 H_points = [H_points fliplr(H_points)]; % instead of one-way sweep, make hysteresis loop
 
 % automatically set up data folders
