@@ -35,26 +35,39 @@ minH = init_minH;
 maxH = init_maxH;
 stepH = init_stepH;
 
+n_iter = 5;
+i_iter = 0;
+
 while true
     output = do_RH_loop(instr,output,minH,maxH,stepH);
 
-    % compute stop condition
-    dV = diff(output.V);
-    figure
-    plot(dV)
-    [~,locs,w,~]=findpeaks(dV,'SortStr','descend');
-    max_dV_pos = output.H(locs(1));
-    w_pos = w(1);
-    [~,locs,w,~]=findpeaks(-dV,'SortStr','descend');
-    max_dV_neg = output.H(locs(1));
-    w_neg = w(1);
-    
-    hyst_width = max_dV_pos-max_dV_neg;
-    
-    break
-%     [maxm,maxi]=max(dV); % maximum (positive) voltage jump
-%     [minm,mini]=min(dV); % minimum (max negative) voltage jump
+    max_V = max(output.V);
+    min_V = min(output.V);
+    mid_V = (max_V+min_V)/2; % center of V range
+    hyst_right_edge = output.H(find(output.V>mid_V,1,'first')); % furthest-right point that passes mid_V
+    hyst_left_edge = output.H(find(output.V>mid_V,1,'last')); % furthest-left point that passes mid_V
 
+    max_slope = max(abs(diff(output.V)./(output.H(2)-output.H(1)))); % V/Oe
+    slope_hyst_left = hyst_left_edge+(min_V-mid_V)/max_slope; % extrapolate left edge of hyst loop according to slope
+    slope_hyst_right = hyst_right_edge+(max_V-mid_V)/max_slope; % extrapolate right edge
+    hyst_width = slope_hyst_right-slope_hyst_left; % total hysteresis width accounting for hard-axis shapes as well as square loops
+    
+    % new hysteresis loop parameters
+    minH = slope_hyst_left-hyst_width;
+    maxH = slope_hyst_right+hyst_width;
+    stepH = (maxH-minH)/100;
+    i_iter = i_iter+1;
+    
+    % stop condition
+    if i_iter == n_iter
+        i_iter = 0; % reset counter
+        x = input("Continue sweeping? Y/N [Y]: ","s");
+        if isempty(x) || x=="Y" || x=="y"
+            continue
+        else
+            break
+        end
+    end
 end
 
 %% functions
