@@ -14,10 +14,11 @@ instr.field.field_factor = 300;
 
 %%
 output.chip = "S2302153_AG_H5";
-output.device = "7-6";
+output.other_notes = "H90deg";
+output.device = "4-5";
 output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 416; % Ohms
-output.read_current = 0.01; % mA
+output.channel_R = 455; % Ohms
+output.read_current = 0.007; % mA
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
@@ -28,22 +29,34 @@ output.data_folder = "Brooke_data/"+date_id+"/";
 mkdir(output.data_folder)
 
 %% iterate over RH sweeps
-init_minH = -170;
-init_maxH = -140;
-init_stepH = 0.5;
+do_maj_loop = true; % if true, do one major loop first from init_minH to init_maxH
+init_minH = -500;
+init_maxH = 0;
+init_stepH = 10;
 minH = init_minH;
 maxH = init_maxH;
 stepH = init_stepH;
 
-n_iter = 5;
+n_iter = 1;
 i_iter = 0;
 
 while true
-    output = do_RH_loop(instr,output,minH,maxH,stepH);
-
-    max_V = max(output.V);
-    min_V = min(output.V);
-    mid_V = (max_V+min_V)/2; % center of V range
+    if do_maj_loop
+        output = do_RH_loop(instr,output,init_minH,-init_minH,stepH);
+        do_maj_loop = false;
+        continue
+    else
+        output = do_RH_loop(instr,output,minH,maxH,stepH);
+    end
+    
+    % get min, max, mid V from first (wide) sweep in case hysteresis loop
+    % falls off-screen in subsequent sweeps
+    if i_iter == 0
+        max_V = max(output.V);
+        min_V = min(output.V);
+        mid_V = (max_V+min_V)/2; % center of V range
+    end
+    
     hyst_right_edge = output.H(find(output.V>mid_V,1,'first')); % furthest-right point that passes mid_V
     hyst_left_edge = output.H(find(output.V>mid_V,1,'last')); % furthest-left point that passes mid_V
 
@@ -59,8 +72,7 @@ while true
     i_iter = i_iter+1;
     
     % stop condition
-    if i_iter == n_iter
-        i_iter = 0; % reset counter
+    if mod(i_iter, n_iter)==0
         x = input("Continue sweeping? Y/N [Y]: ","s");
         if isempty(x) || x=="Y" || x=="y"
             continue
@@ -101,7 +113,7 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
     end
     ramp_inst(instr.field,'field IP',0,5);
     
-    save(output.data_folder+output.chip+"_"+output.device+"_RH_"+datestr(now,'HHMM')+".mat","output");
+    save(output.data_folder+output.chip+"_"+output.device+"_RH_"+output.other_notes+"_"+datestr(now,'HHMM')+".mat","output");
     % save figure as well
-    saveas(h,output.data_folder+output.chip+"_"+output.device+"_RH_"+datestr(now,'HHMM')+".jpg");
+    saveas(h,output.data_folder+output.chip+"_"+output.device+"_RH90deg_"+output.other_notes+"_"+datestr(now,'HHMM')+".jpg");
 end
