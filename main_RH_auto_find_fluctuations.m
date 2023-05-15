@@ -14,11 +14,11 @@ instr.field.field_factor = 300;
 
 %%
 output.chip = "S2302153_AG_H5";
-output.other_notes = "H90deg";
-output.device = "4-5";
-output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 455; % Ohms
-output.read_current = 0.007; % mA
+output.other_notes = "";
+output.device = "7-8";
+output.reset_field = -200; % Oe, applied along easy axis to set state
+output.channel_R = 441; % Ohms
+output.read_current = 0.016; % mA
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
@@ -29,10 +29,10 @@ output.data_folder = "Brooke_data/"+date_id+"/";
 mkdir(output.data_folder)
 
 %% iterate over RH sweeps
-do_maj_loop = true; % if true, do one major loop first from init_minH to init_maxH
-init_minH = -500;
-init_maxH = 0;
-init_stepH = 10;
+do_maj_loop = false; % if true, do one major loop first from init_minH to init_maxH
+init_minH = -125;
+init_maxH = -95;
+init_stepH = 0.5;
 minH = init_minH;
 maxH = init_maxH;
 stepH = init_stepH;

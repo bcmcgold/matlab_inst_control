@@ -14,27 +14,25 @@ field.field_factor = 300;
 
 %%
 output.chip = "S2302153_AG_H5";
-output.device = "7-8";
+output.device = "3-10";
 output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 441; % Ohms
-output.read_current = 0.016; % mA
+output.channel_R = 431; % Ohms
+output.read_current = 0.005; % mA
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
-output.wait_after_H = 0.5; % s
+output.wait_after_H = 5; % s
+output.wait_after_I = 2; % s
+output.trig_with_scope = true;
 
-H_points = -500:10:500; % Oe
+H_points = -350:2:-50; % Oe
 H_points = [H_points fliplr(H_points)]; % instead of one-way sweep, make hysteresis loop
 
-% automatically set up data folders
-date_id = datestr(now,'yyyymmDD');
-data_folder = "Brooke_data/"+date_id+"/";
-mkdir(data_folder)
-
-%% start measurement
 % apply reset field
 ramp_inst(field,'field IP',output.reset_field,5);
 % apply read current
-set_inst(sourcemeter,'mA',output.read_current);
+if ~output.trig_with_scope
+    set_inst(sourcemeter,'mA',output.read_current);
+end
 
 figure;
 h = animatedline('Marker','o');
@@ -50,12 +48,20 @@ for i = 1:length(H_points)
     output.H(i) = H_points(i);
     output.V(i) = read_inst_avg(sourcemeter,'XV',output.n_readings,output.wait_between_readings);
     output.t(i) = str2double(datestr(now,'HHMMSS'));
+    
+    if output.trig_with_scope
+        % pulse current to trigger scope
+        set_inst(sourcemeter,'mA',output.read_current);
+        pause(output.wait_after_I);
+        output.V(i) = read_inst_avg(sourcemeter,'XV',output.n_readings,output.wait_between_readings);
+        set_inst(sourcemeter,'mA',0);
+    end
         
     addpoints(h,output.H(i),output.V(i)/output.read_current-output.channel_R/2000);
     drawnow
 end
 ramp_inst(field,'field IP',0,5);
 
-save(data_folder+output.chip+"_"+output.device+"_RH_"+datestr(now,'HHMM')+".mat","output");
+save("Brooke_data/20230508/"+output.chip+"_"+output.device+"_RH_"+datestr(now,'HHMM')+".mat","output");
 % save figure as well
-saveas(h,data_folder+output.chip+"_"+output.device+"_RH_"+datestr(now,'HHMM')+".jpg");
+saveas(h,"Brooke_data/20230508/"+output.chip+"_"+output.device+"_RH_"+datestr(now,'HHMM')+".jpg");

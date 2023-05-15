@@ -13,33 +13,31 @@ field.name = 'daq';
 field.field_factor = 300;
 
 scope_tcp = tcpip("169.254.47.225",80);
-scope = icdevice('lecroy_basic_driver', scope_tcp);
+scope = icdevice('lecroy_basic_driver.mdd', scope_tcp);
 connect(scope);
 
 %% set up measurement parameters
 output.chip = "S2302153_AG_H5";
-output.device = "3-10";
+output.device = "7-8";
 output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 431; % Ohms
-output.read_current = 0.005; % mA
+output.channel_R = 441; % Ohms
+output.read_current = 0.016; % mA
 output.wait_after_H = 0.5; % s
 
-H_points = -350:2:-50; % Oe
+H_points = -147:0.1:-125; % Oe
 H_points = [H_points fliplr(H_points)]; % instead of one-way sweep, make hysteresis loop
 
 % automatically set up data folders
 date_id = datestr(now,'yyyymmDD');
-data_folder = "D:/"+date_id+"/";
+data_folder = "Brooke_data/"+date_id+"/";
 mkdir(data_folder)
 time_id = datestr(now,'HHMM');
-scope_data_folder = data_folder+"/scope_output_"+time_id+"/";
+scope_data_folder = "D:/"+date_id+"/scope_output_"+time_id+"/";
 mkdir(scope_data_folder)
 
 %% start measurement
 % apply reset field
 ramp_inst(field,'field IP',output.reset_field,5);
-% apply read current
-set_inst(sourcemeter,'mA',output.read_current);
 
 figure;
 h = animatedline('Marker','o');
@@ -48,18 +46,26 @@ ylabel("R_{MTJ} (kohm)")
 
 % ramp from 0 to large field over longer time
 ramp_inst(field,'field IP',H_points(1),5);
+set_inst(sourcemeter,'mA',0); % set read current to 0 at first because trigger is based on pulsing Iread
 for i = 1:length(H_points)
     ramp_inst(field,'field IP',H_points(i),0.01);
     pause(output.wait_after_H);
     
     % collect data on scope and save to file
+    tic;
     invoke(scope.trigger,'trigger'); % trigger scope
-    pause(10*scope.acquisition.timebase); % wait for acquisition time
+    while scope.acquisition.state ~= "single" % wait for scope to look for waveform
+    end
+    set_inst(sourcemeter,'mA',output.read_current); % apply read current to trigger
+    while scope.acquisition.state ~= "stop" % wait for scope to trigger
+    end
     [scopedata.y, scopedata.t] = invoke(scope.waveform, 'readwaveform', 'channel3');
     save(scope_data_folder+strrep(sprintf("timetraceH%g",H_points(i)),'.','p')+"Oe.mat","scopedata");
+    toc
     
     output.H(i) = H_points(i);
     output.V(i) = read_inst(sourcemeter,'XV');
+    set_inst(sourcemeter,'mA',0); % reset read current to 0
     
     addpoints(h,output.H(i),output.V(i)/output.read_current-output.channel_R/2000);
     drawnow
