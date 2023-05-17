@@ -14,10 +14,10 @@ field.field_factor = 300;
 
 %%
 output.chip = "S2302153_AG_H5";
-output.device = "7-8";
+output.device = "5-10";
 output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 441; % Ohms
-output.read_current = 0.016; % mA
+output.channel_R = 434; % Ohms
+output.read_current = 0.017; % mA
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s

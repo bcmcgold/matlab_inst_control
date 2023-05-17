@@ -18,13 +18,13 @@ connect(scope);
 
 %% set up measurement parameters
 output.chip = "S2302153_AG_H5";
-output.device = "7-8";
-output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 441; % Ohms
-output.read_current = 0.016; % mA
+output.device = "5-10";
+output.reset_field = -175; % Oe, applied along easy axis to set state
+output.channel_R = 434; % Ohms
+output.read_current = 0.017; % mA
 output.wait_after_H = 0.5; % s
 
-H_points = -147:0.1:-125; % Oe
+H_points = -175:0.05:-155; % Oe
 H_points = [H_points fliplr(H_points)]; % instead of one-way sweep, make hysteresis loop
 
 % automatically set up data folders
@@ -60,7 +60,7 @@ for i = 1:length(H_points)
     while scope.acquisition.state ~= "stop" % wait for scope to trigger
     end
     [scopedata.y, scopedata.t] = invoke(scope.waveform, 'readwaveform', 'channel3');
-    save(scope_data_folder+strrep(sprintf("timetraceH%g",H_points(i)),'.','p')+"Oe.mat","scopedata");
+    save(scope_data_folder+strrep(sprintf("timetraceH%gOen%d",H_points(i),i),'.','p')+".mat","scopedata");
     toc
     
     output.H(i) = H_points(i);
