@@ -12,7 +12,7 @@ function output = read_inst_avg( inst , read_mode , n_reads , t_between_reads )
         case {810,'sr810','SR810'}
             outputs = zeros(1,n_reads);
             for i=1:n_reads
-                outputs(i) = read_SR810(inst_obj,read_mode);
+                outputs(i) = read_SR810(inst,read_mode);
                 pause(t_between_reads)
             end
             output = mean(outputs);

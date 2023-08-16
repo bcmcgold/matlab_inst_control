@@ -1,4 +1,7 @@
-function output = read_SR810(inst_obj,read_mode)
+function output = read_SR810(inst,read_mode)
+    inst_obj = inst.obj;
+    field_factor = inst.field_factor;
+
     switch read_mode
         case {'INPUT','X','DATA'}
             fprintf(inst_obj,'OUTP ? 1');
@@ -22,7 +25,13 @@ function output = read_SR810(inst_obj,read_mode)
             temp_str = fscanf(inst_obj);
             temp_num = str2num(temp_str);
             output = temp_num;
-            
+
+        case {'field IP'}
+             fprintf(inst_obj,'AUXV ? 1');
+            temp_str = fscanf(inst_obj);
+            temp_num = str2num(temp_str);
+            output = temp_num*field_factor;
+
         otherwise
             warning('no matching mode');
             output = 0;    

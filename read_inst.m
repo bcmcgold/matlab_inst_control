@@ -9,7 +9,7 @@ function output = read_inst( inst , read_mode )
         case {2400,'2400'}
             output = read_2400(inst_obj,read_mode);
         case {'SR810','sr810',810}
-            output = read_SR810(inst_obj,read_mode);
+            output = read_SR810(inst,read_mode);
         case {'8720C','8720',8720}
             output = read_8720(inst_obj,read_mode);
         case {'EGG','EGnG','EG&G','7260',7260}

@@ -6,7 +6,7 @@ instrreset;
 motor.obj = serialport('COM3',9600); pause(2);
 motor.name = 'motor';
 
-sourcemeter.obj = gpib('ni',0,5); fopen(sourcemeter.obj);
+sourcemeter.obj = gpib('ni',0,24); fopen(sourcemeter.obj);
 sourcemeter.name = 2400;
 
 % use 2400 as source and voltmeter

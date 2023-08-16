@@ -17,11 +17,11 @@ field.field_factor = 300;
 
 %%
 output.chip = "S2302153_AG_H5";
-output.device = "5-10";
+output.device = "1-4";
 output.max_field = 300; % Oe
-output.H_step = 3; % Oe
-output.channel_R = 434; % Ohms
-output.read_current = 0.017; % mA
+output.H_step = 10; % Oe
+output.channel_R = 0; % Ohms
+output.read_current = 0.005; % mA
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
@@ -48,7 +48,8 @@ mkdir(data_folder)
 % apply read current
 set_inst(sourcemeter,'mA',output.read_current);
 
-figure;
+f=figure;
+f.Position = [150 200 1150 450];
 subplot(1,2,1)
 h = animatedline('Marker','o');
 xlabel("H (Oe)")

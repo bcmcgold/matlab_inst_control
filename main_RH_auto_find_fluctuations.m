@@ -8,17 +8,36 @@ instr.sourcemeter.obj = gpib('ni',0,5); fopen(instr.sourcemeter.obj);
 instr.sourcemeter.name = 2400;
 instr.voltmeter = instr.sourcemeter;
 
-instr.field.obj = daq("mcc");
-instr.field.name = 'daq';
-instr.field.field_factor = 300;
+% instr.field.obj = daq("mcc");
+% instr.field.name = 'daq';
+% instr.field.field_factor = 300;
+
+% Use DAC1 of 7260 to control magnetic field
+instr.field.obj = gpib('ni',0,12); fopen(instr.field.obj);
+instr.field.name = 7260;
+
+try % if scope is connected, use it
+    scope_tcp = tcpip("169.254.47.225",80);
+    instr.scope = icdevice('lecroy_basic_driver.mdd', scope_tcp);
+    connect(instr.scope); % if connect fails: turn TCP on/off on scope
+    
+    % setting any of MEAS1-4 just changes them all
+    set(instr.scope.MEAS1,'Source','channel3')
+    
+    instr.scope_active = true;
+catch % if scope not connected, set a flag
+    instr.scope_active = false;
+end
 
 %%
-output.chip = "S2302153_AG_H5";
+output.chip = "S2302153_AG_H4";
+output.device = "7-10";
 output.other_notes = "";
-output.device = "5-10";
 output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 434; % Ohms
-output.read_current = 0.017; % mA
+output.channel_R = 0; % Ohms
+output.read_voltage = 0.4; % V
+output.sense_R = 19.7; % kOhms
+output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
@@ -30,14 +49,14 @@ mkdir(output.data_folder)
 
 %% iterate over RH sweeps
 do_maj_loop = false; % if true, do one major loop first from init_minH to init_maxH
-init_minH = -300;
-init_maxH = 0;
-init_stepH = 3;
+init_minH = -500;
+init_maxH = 500;
+init_stepH = (init_maxH-init_minH)/50;
 minH = init_minH;
 maxH = init_maxH;
 stepH = init_stepH;
 
-n_iter = 1;
+n_iter = 1; % number of iterations that will run before asking for user feedback
 i_iter = 0;
 
 while true
@@ -66,8 +85,8 @@ while true
     hyst_width = slope_hyst_right-slope_hyst_left; % total hysteresis width accounting for hard-axis shapes as well as square loops
     
     % new hysteresis loop parameters
-    minH = slope_hyst_left-hyst_width;
-    maxH = slope_hyst_right+hyst_width;
+    minH = slope_hyst_left-0.5*hyst_width;
+    maxH = slope_hyst_right+0.5*hyst_width;
     stepH = (maxH-minH)/100;
     i_iter = i_iter+1;
     
@@ -89,31 +108,64 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
     H_points = [H_points fliplr(H_points)]; % instead of one-way sweep, make hysteresis loop
 
     % apply reset field
-    ramp_inst(instr.field,'field IP',output.reset_field,5);
+    ramp_inst(instr.field,'DAC1',output.reset_field,5);
     % apply read current
-    set_inst(instr.sourcemeter,'mA',output.read_current);
+    set_inst(instr.sourcemeter,'V',output.read_voltage);
     
-    figure;
+    f = figure;
+    f.Position = [150 200 1150 450];
+    if instr.scope_active
+        subplot(1,2,2);
+        hold on;
+        htop = animatedline('Marker','o','Color','green');
+        hmean = animatedline('Marker','o','Color','black');
+        hbase = animatedline('Marker','o','Color','red');
+        xlabel("H (Oe)")
+        ylabel("V_{MTJ} (V)")
+        title("Scope output")
+        legend('Top','Mean','Base','Location','southeast')
+        subplot(1,2,1);
+    end
     h = animatedline('Marker','o');
     xlabel("H (Oe)")
     ylabel("R_{MTJ} (kohm)")
+    title("KE2400 output")
     
     % ramp from 0 to large field over longer time
-    ramp_inst(instr.field,'field IP',H_points(1),5);
+    ramp_inst(instr.field,'DAC1',H_points(1),5);
     for i = 1:length(H_points)
-        ramp_inst(instr.field,'field IP',H_points(i),0.01);
+        ramp_inst(instr.field,'DAC1',H_points(i),0.01);
         pause(output.wait_after_H);
         
         output.H(i) = H_points(i);
-        output.V(i) = read_inst_avg(instr.sourcemeter,'XV',output.n_readings,output.wait_between_readings);
         output.t(i) = str2double(datestr(now,'HHMMSS'));
+        
+        if instr.scope_active
+            set(instr.scope.MEAS1,'MeasurementType','top');
+            output.Vtop(i) = get(instr.scope.MEAS1).Value;
+            set(instr.scope.MEAS1,'MeasurementType','base');
+            output.Vbase(i) = get(instr.scope.MEAS1).Value;
+            set(instr.scope.MEAS1,'MeasurementType','mean');
+            output.Vmean(i) = get(instr.scope.MEAS1).Value;
             
-        addpoints(h,output.H(i),output.V(i)/output.read_current-output.channel_R/2000);
+            addpoints(htop,output.H(i),output.Vtop(i));
+            addpoints(hbase,output.H(i),output.Vbase(i));
+            addpoints(hmean,output.H(i),output.Vmean(i));
+        end
+        output.I(i) = 1e3*read_inst_avg(instr.sourcemeter,'XI',output.n_readings,output.wait_between_readings);
+        output.V(i) = (output.read_voltage-output.I(i)*output.sense_R)/output.gain;
+
+        addpoints(h,output.H(i),output.V(i)/output.I(i));
         drawnow
     end
-    ramp_inst(instr.field,'field IP',0,5);
+    ramp_inst(instr.field,'DAC1',0,5);
     
     save(output.data_folder+output.chip+"_"+output.device+"_RH_"+output.other_notes+"_"+datestr(now,'HHMM')+".mat","output");
     % save figure as well
-    saveas(h,output.data_folder+output.chip+"_"+output.device+"_RH90deg_"+output.other_notes+"_"+datestr(now,'HHMM')+".jpg");
+    saveas(h,output.data_folder+output.chip+"_"+output.device+"_RH_"+output.other_notes+"_"+datestr(now,'HHMM')+".jpg");
 end
+
+
+% motor.obj = serialport('COM3',9600); pause(2);
+% motor.name = 'motor';
+% set_inst(motor,'Angle_simple',90);

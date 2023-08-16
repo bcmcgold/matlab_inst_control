@@ -7,7 +7,7 @@ function set_inst( inst , set_mode , set_value )
         case {336}
             set_336(inst_obj,set_mode,set_value);
         case {810,'sr810','SR810'}
-            set_SR810(inst_obj,set_mode,set_value);
+            set_SR810(inst,set_mode,set_value);
         case {2400,'2400'}
             set_2400(inst_obj,set_mode,set_value);
         case {1200,12000,'1200','12000','12000A'}

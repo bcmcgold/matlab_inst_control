@@ -14,16 +14,15 @@ field.field_factor = 300;
 
 %%
 output.chip = "S2302153_AG_H5";
-output.device = "9-5";
-output.other_notes = "H-90deg";
+output.device = "7-6";
 output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 0; % Ohms
-output.read_current = 0.006; % mA
+output.channel_R = 416; % Ohms
+output.read_current = 0.009; % mA
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
 
-H_points = -350:3:-50; % Oe
+H_points = -500:10:500; % Oe
 H_points = [H_points fliplr(H_points)]; % instead of one-way sweep, make hysteresis loop
 
 % automatically set up data folders
@@ -57,6 +56,6 @@ for i = 1:length(H_points)
 end
 ramp_inst(field,'field IP',0,5);
 
-save(data_folder+output.chip+"_"+output.device+"_RH_"+output.other_notes+"_"+datestr(now,'HHMM')+".mat","output");
+save(data_folder+output.chip+"_"+output.device+"_RH_"+datestr(now,'HHMM')+".mat","output");
 % save figure as well
-saveas(h,data_folder+output.chip+"_"+output.device+"_RH_"+output.other_notes+"_"+datestr(now,'HHMM')+".jpg");
+saveas(h,data_folder+output.chip+"_"+output.device+"_RH_"+datestr(now,'HHMM')+".jpg");
