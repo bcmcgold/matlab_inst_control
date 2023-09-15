@@ -1,5 +1,19 @@
-% before this code runs, simply adjust timebase & delay (full screen
-% timebase/2)
+% before this code runs, simply adjust timebase, vertical scale & trigger level
+%% set up measurement parameters
+output.chip = "S2302153_300C_H1";
+output.device = "6-20";
+output.other_notes = "";
+output.reset_field = 0; % Oe, applied along easy axis to set state
+output.channel_R = 0; % Ohms
+output.read_voltage = 0.8; % V
+output.sense_R = 19.7; % kOhms
+output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
+output.n_readings = 1;
+output.wait_between_readings = 0; % s
+output.wait_after_H = 0.5; % s
+
+output.H = -15:0.2:-7; % Oe
+
 %% initialize
 instrreset;
 clear all;
@@ -24,26 +38,19 @@ set(scope.MEAS1,'MeasurementType','mean');
 % set scope delay after trigger (make trigger occur at left side of screen)
 set(scope.acquisition,'Delay',-scope.acquisition.timebase*5);
 
-%% set up measurement parameters
-output.chip = "S2302153_300C_H1";
-output.device = "6-20";
-output.other_notes = "";
-output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 0; % Ohms
-output.read_voltage = 0.8; % V
-output.sense_R = 19.7; % kOhms
-output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
-output.n_readings = 1;
-output.wait_between_readings = 0; % s
-output.wait_after_H = 0.5; % s
-
-H_points = -15:0.2:-7; % Oe
-
 % automatically set up data folders
-date_id = datestr(now,'yyyymmDD');
-time_id = datestr(now,'HHMM');
+date_id = string(datetime('now','Format','yyyymmDD'));
+time_id = string(datetime('now','Format','HHMM'));
 data_folder = "D:/"+date_id+"/scope_output_"+time_id+"/";
 mkdir(data_folder)
+
+% pre-allocate variables that will be used in loop (avoid re-allocation
+% overhead which slows down program significantly). declare largest to
+% smallest
+scopedata = struct('y',zeros(1,xx,'single'),'t',zeros(1,xx,'single'));
+output.I = zeros(1,length(output.H),'single');
+output.V = zeros(1,length(output.H),'single');
+output.Vmean = zeros(1,length(output.H),'single');
 
 %% start measurement
 % apply reset field
@@ -55,10 +62,10 @@ xlabel("H (Oe)")
 ylabel("R_{MTJ} (kohm)")
 
 % ramp from 0 to large field over longer time
-ramp_inst(field,'field IP',H_points(1),5);
+ramp_inst(field,'field IP',output.H(1),5);
 set_inst(sourcemeter,'V',0); % set read voltage to 0 at first because trigger is based on pulsing Iread
-for i = 1:length(H_points)
-    ramp_inst(field,'field IP',H_points(i),0.01);
+for i = 1:length(output.H)
+    ramp_inst(field,'field IP',output.H(i),0.01);
     pause(output.wait_after_H);
     
     % collect data on scope and save to file
@@ -70,10 +77,9 @@ for i = 1:length(H_points)
     while scope.acquisition.state ~= "stop" % wait for scope to trigger
     end
     [scopedata.y, scopedata.t] = invoke(scope.waveform, 'readwaveform', 'channel3');
-    save(data_folder+strrep(sprintf("timetraceH%gOen%d",H_points(i),i),'.','p')+".mat","scopedata");
+    save(data_folder+strrep(sprintf("timetraceH%gOen%d",output.H(i),i),'.','p')+".mat","scopedata");
     toc
     
-    output.H(i) = H_points(i);
     output.I(i) = 1e3*read_inst_avg(sourcemeter,'XI',output.n_readings,output.wait_between_readings);
     output.V(i) = output.read_voltage-output.I(i)*output.sense_R;
     output.Vmean(i) = get(scope.MEAS1).Value;
