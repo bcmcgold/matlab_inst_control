@@ -8,13 +8,15 @@ instr.sourcemeter.obj = gpib('ni',0,5); fopen(instr.sourcemeter.obj);
 instr.sourcemeter.name = 2400;
 instr.voltmeter = instr.sourcemeter;
 
-% instr.field.obj = daq("mcc");
-% instr.field.name = 'daq';
-% instr.field.field_factor = 300;
+% MCC DAQ for field
+instr.field.obj = daq("mcc");
+instr.field.name = 'daq';
+instr.field.field_factor = 670;
 
-% Use DAC1 of 7260 to control magnetic field
-instr.field.obj = gpib('ni',0,12); fopen(instr.field.obj);
-instr.field.name = 7260;
+% connect to motor in case we want to rotate magn1et after measurement
+motor.obj = serialport('COM3',9600); pause(2);
+motor.name = 'motor';
+% set_inst(motor,'Angle_simple',xx) reminder of motor turn command
 
 try % if scope is connected, use it
     scope_tcp = tcpip("169.254.47.225",80);
@@ -30,14 +32,14 @@ catch % if scope not connected, set a flag
 end
 
 %%
-output.chip = "S2302153_AG_H4";
-output.device = "7-10";
+output.chip = "S2302153_300C_H1";
+output.device = "10-14";
 output.other_notes = "";
 output.reset_field = 0; % Oe, applied along easy axis to set state
 output.channel_R = 0; % Ohms
-output.read_voltage = 0.4; % V
+output.read_voltage = 0.7; % V
 output.sense_R = 19.7; % kOhms
-output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
+output.gain = 5/2; % divide by 2 to account for attenuation of 50-ohm connection
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
@@ -48,10 +50,13 @@ output.data_folder = "Brooke_data/"+date_id+"/";
 mkdir(output.data_folder)
 
 %% iterate over RH sweeps
-do_maj_loop = false; % if true, do one major loop first from init_minH to init_maxH
-init_minH = -500;
-init_maxH = 500;
+do_maj_loop = true; % if true, do one major loop first from init_minH to init_maxH
+init_minH = -100;
+init_maxH = 0;
 init_stepH = (init_maxH-init_minH)/50;
+if do_maj_loop
+    init_stepH = 2*init_stepH;
+end
 minH = init_minH;
 maxH = init_maxH;
 stepH = init_stepH;
@@ -63,7 +68,12 @@ while true
     if do_maj_loop
         output = do_RH_loop(instr,output,init_minH,-init_minH,stepH);
         do_maj_loop = false;
-        continue
+        resp=ask_to_continue();
+        if resp==true
+            continue
+        elseif resp==false
+            break
+        end
     else
         output = do_RH_loop(instr,output,minH,maxH,stepH);
     end
@@ -92,23 +102,32 @@ while true
     
     % stop condition
     if mod(i_iter, n_iter)==0
-        x = input("Continue sweeping? Y/N [Y]: ","s");
-        if isempty(x) || x=="Y" || x=="y"
+        resp=ask_to_continue();
+        if resp==true
             continue
-        else
+        elseif resp==false
             break
         end
     end
 end
 
 %% functions
+function resp=ask_to_continue()
+    x = input("Continue sweeping? Y/N [Y]: ","s");
+    if isempty(x) || x=="Y" || x=="y"
+        resp=true;
+    else
+        resp=false;
+    end
+end
+
 function output=do_RH_loop(instr,output,minH,maxH,stepH)
     % list of H to sweep through
     H_points = minH:stepH:maxH; % Oe
     H_points = [H_points fliplr(H_points)]; % instead of one-way sweep, make hysteresis loop
 
     % apply reset field
-    ramp_inst(instr.field,'DAC1',output.reset_field,5);
+    ramp_inst(instr.field,'field IP',output.reset_field,5);
     % apply read current
     set_inst(instr.sourcemeter,'V',output.read_voltage);
     
@@ -132,9 +151,9 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
     title("KE2400 output")
     
     % ramp from 0 to large field over longer time
-    ramp_inst(instr.field,'DAC1',H_points(1),5);
+    ramp_inst(instr.field,'field IP',H_points(1),5);
     for i = 1:length(H_points)
-        ramp_inst(instr.field,'DAC1',H_points(i),0.01);
+        ramp_inst(instr.field,'field IP',H_points(i),0.01);
         pause(output.wait_after_H);
         
         output.H(i) = H_points(i);
@@ -153,19 +172,14 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
             addpoints(hmean,output.H(i),output.Vmean(i));
         end
         output.I(i) = 1e3*read_inst_avg(instr.sourcemeter,'XI',output.n_readings,output.wait_between_readings);
-        output.V(i) = (output.read_voltage-output.I(i)*output.sense_R)/output.gain;
+        output.V(i) = output.read_voltage-output.I(i)*output.sense_R;
 
         addpoints(h,output.H(i),output.V(i)/output.I(i));
         drawnow
     end
-    ramp_inst(instr.field,'DAC1',0,5);
+    ramp_inst(instr.field,'field IP',0,5);
     
     save(output.data_folder+output.chip+"_"+output.device+"_RH_"+output.other_notes+"_"+datestr(now,'HHMM')+".mat","output");
     % save figure as well
     saveas(h,output.data_folder+output.chip+"_"+output.device+"_RH_"+output.other_notes+"_"+datestr(now,'HHMM')+".jpg");
 end
-
-
-% motor.obj = serialport('COM3',9600); pause(2);
-% motor.name = 'motor';
-% set_inst(motor,'Angle_simple',90);
