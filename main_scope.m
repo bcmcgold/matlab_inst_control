@@ -4,18 +4,18 @@ close all;
 
 %% set up measurement parameters
 output.chip = "S2302153_300C_H1";
-output.device = "2-14";
+output.device = "8-19";
 output.other_notes = "";
 output.reset_field = 0; % Oe, applied along easy axis to set state
 output.channel_R = 0; % Ohms
-output.read_voltage = 0.8; % V
+output.read_voltage = 0.6; % V
 output.sense_R = 19.7; % kOhms
-output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
+output.gain = 5/2; % divide by 2 to account for attenuation of 50-ohm connection
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
 
-output.H = -24:0.5:-5; % Oe
+output.H = -62:0.25:-48; % Oe
 
 %% initialize
 instrreset;
@@ -28,7 +28,7 @@ voltmeter = sourcemeter;
 % MCC DAQ for field
 field.obj = daq("mcc");
 field.name = 'daq';
-field.field_factor = 650;
+field.field_factor = 670;
 
 scope_tcp = tcpip("169.254.47.225",80);
 scope = icdevice('lecroy_basic_driver.mdd', scope_tcp);
@@ -79,6 +79,7 @@ for i = 1:length(output.H)
     end
     [scopedata.y, scopedata.t] = invoke(scope.waveform, 'readwaveform', 'channel3');
     save(data_folder+strrep(sprintf("timetraceH%gOen%d",output.H(i),i),'.','p')+".mat","scopedata");
+    clear scopedata
     toc
     
     output.I(i) = 1e3*read_inst_avg(sourcemeter,'XI',output.n_readings,output.wait_between_readings);
