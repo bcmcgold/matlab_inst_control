@@ -1,4 +1,7 @@
-% before this code runs, simply adjust timebase, vertical scale & trigger level
+% before this code runs, simply adjust timebase, sample rate, vertical scale & trigger level
+clear all;
+close all;
+
 %% set up measurement parameters
 output.chip = cellstr("S2302153_300C_H1");
 output.device = cellstr("6-20");
@@ -12,12 +15,10 @@ output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
 
-output.H = -15:0.2:-7; % Oe
+output.H = -24:0.5:-5; % Oe
 
 %% initialize
 instrreset;
-clear all;
-close all;
 
 % use 2400 as source and voltmeter
 sourcemeter.obj = gpib('ni',0,5); fopen(sourcemeter.obj);
@@ -39,15 +40,15 @@ set(scope.MEAS1,'MeasurementType','mean');
 set(scope.acquisition,'Delay',-scope.acquisition.timebase*5);
 
 % automatically set up data folders
-date_id = string(datetime('now','Format','yyyymmDD'));
-time_id = string(datetime('now','Format','HHMM'));
+date_id = datestr(now,'yyyymmDD');
+time_id = datestr(now,'HHMM');
 data_folder = "D:/"+date_id+"/scope_output_"+time_id+"/";
 mkdir(data_folder)
 
 % pre-allocate variables that will be used in loop (avoid re-allocation
 % overhead which slows down program significantly). declare largest to
 % smallest
-scopedata = struct('y',zeros(1,xx,'single'),'t',zeros(1,xx,'single'));
+scopedata = struct('y',zeros(1,scope.sequence.max,'single'),'t',zeros(1,scope.sequence.max,'single'));
 output.I = zeros(1,length(output.H),'single');
 output.V = zeros(1,length(output.H),'single');
 output.Vmean = zeros(1,length(output.H),'single');
