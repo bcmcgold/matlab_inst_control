@@ -1,8 +1,8 @@
 % before this code runs, simply adjust timebase, vertical scale & trigger level
 %% set up measurement parameters
-output.chip = "S2302153_300C_H1";
-output.device = "6-20";
-output.other_notes = "";
+output.chip = cellstr("S2302153_300C_H1");
+output.device = cellstr("6-20");
+output.other_notes = cellstr("");
 output.reset_field = 0; % Oe, applied along easy axis to set state
 output.channel_R = 0; % Ohms
 output.read_voltage = 0.8; % V
