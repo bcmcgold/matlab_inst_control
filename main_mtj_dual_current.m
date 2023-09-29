@@ -25,28 +25,26 @@ motor.obj = serialport('COM3',9600); pause(2);
 motor.name = 'motor';
 % set_inst(motor,'Angle_simple',xx) reminder of motor turn command
 
-try % if scope is connected, use it
-    scope_tcp = tcpip("169.254.47.225",80);
-    instr.scope = icdevice('lecroy_basic_driver.mdd', scope_tcp);
-    connect(instr.scope); % if connect fails: turn TCP on/off on scope
-    
-    % setting any of MEAS1-4 just changes them all
-    set(instr.scope.MEAS1,'Source','channel3')
-    
-    instr.scope_active = true;
-catch % if scope not connected, set a flag
-    instr.scope_active = false;
-end
+% try % if scope is connected, use it
+%     scope_tcp = tcpip("169.254.47.225",80);
+%     instr.scope = icdevice('lecroy_basic_driver.mdd', scope_tcp);
+%     connect(instr.scope); % if connect fails: turn TCP on/off on scope
+% 
+%     % setting any of MEAS1-4 just changes them all
+%     set(instr.scope.MEAS1,'Source','channel3')
+% 
+%     instr.scope_active = true;
+% catch % if scope not connected, set a flag
+%     instr.scope_active = false;
+% end
 
 %%
 output.chip = "S2302153_300C_H1";
 output.device = "4-14";
 output.other_notes = "";
 output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 0; % Ohms
-output.read_voltage = 0.8; % V
 output.sense_R = 19.7; % kOhms
-output.gain = 5/2; % divide by 2 to account for attenuation of 50-ohm connection
+% output.gain = 5/2; % divide by 2 to account for attenuation of 50-ohm connection
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
@@ -57,77 +55,63 @@ output.data_folder = "Brooke_data/"+date_id+"/";
 mkdir(output.data_folder)
 
 %% iterate over H, Vmtj, Isot sweeps
-output.read_voltage = [0.8];
-output.sot_current = [0];
-output.H = [0];
+output.read_voltage = [0.8]; % V
+output.sot_current = [0]; % mA
+output.H = [0]; % Oe
+% calculate output.channel_R on each iteration
 
-while true
-    if do_maj_loop
-        output = do_RH_loop(instr,output,init_minH,-init_minH,stepH);
-        do_maj_loop = false;
-        resp=ask_to_continue();
-        if resp==true
-            continue
-        elseif resp==false
-            break
-        end
-    else
-        output = do_RH_loop(instr,output,minH,maxH,stepH);
-    end
-    
-    % get min, max, mid V from first (wide) sweep in case hysteresis loop
-    % falls off-screen in subsequent sweeps
-    if i_iter == 0
-        max_V = max(output.V);
-        min_V = min(output.V);
-        mid_V = (max_V+min_V)/2; % center of V range
-    end
-    
-    hyst_right_edge = output.H(find(output.V>mid_V,1,'first')); % furthest-right point that passes mid_V
-    hyst_left_edge = output.H(find(output.V>mid_V,1,'last')); % furthest-left point that passes mid_V
+% ramp each variable up slowly at first
+ramp_inst(instr.field,'field IP',output.H(1),5);
+ramp_inst(instr.mtj_src,'V',output.read_voltage(1),5);
+ramp_inst(instr.sot_src,'mA',output.sot_current(1),5);
 
-    max_slope = max(abs(diff(output.V)./(output.H(2)-output.H(1)))); % V/Oe
-    slope_hyst_left = hyst_left_edge+(min_V-mid_V)/max_slope; % extrapolate left edge of hyst loop according to slope
-    slope_hyst_right = hyst_right_edge+(max_V-mid_V)/max_slope; % extrapolate right edge
-    hyst_width = slope_hyst_right-slope_hyst_left; % total hysteresis width accounting for hard-axis shapes as well as square loops
-    
-    % new hysteresis loop parameters
-    minH = slope_hyst_left-0.5*hyst_width;
-    maxH = slope_hyst_right+0.5*hyst_width;
-    stepH = (maxH-minH)/100;
-    i_iter = i_iter+1;
-    
-    % stop condition
-    if mod(i_iter, n_iter)==0
-        resp=ask_to_continue();
-        if resp==true
-            continue
-        elseif resp==false
-            break
-        end
+%% iterate over all combinations of variables, measure, and plot
+
+% set up figure and animated lines
+f = figure;
+f.Position = [150 200 1150 450];
+sot_lines_dict = dictionary;
+mtj_lines_dict = dictionary;
+field_lines_dict = dictionary;
+for fi=output.H
+    for rv=output.read_voltage
+        subplot(1,3,1);
+        sot_lines_dict([fi,rv]) = animatedline('Marker','o','DisplayName',"H="+fi+"Oe,Vmtj="+rv+"V");
+        xlabel("SOT current (mA)")
+        ylabel("Rmtj (kOhms)")
+    end
+    for sc=output.sot_current
+        subplot(1,3,2);
+        mtj_lines_dict([fi,sc]) = animatedline('Marker','o','DisplayName',"H="+fi+"Oe,Isot="+sc+"mA");
+        xlabel("MTJ voltage (V)")
+        ylabel("Rmtj (kOhms)")
+    end
+end
+for rv=output.read_voltage
+    for sc=output.sot_current
+        subplot(1,3,3);
+        field_lines_dict([rv,sc]) = animatedline('Marker','o','DisplayName',"Vmtj="+rv+"V,Isot="+sc+"mA");
+        xlabel("Field (Oe)")
+        ylabel("Rmtj (kOhms)")
     end
 end
 
-%% functions
-function resp=ask_to_continue()
-    x = input("Continue sweeping? Y/N [Y]: ","s");
-    if isempty(x) || x=="Y" || x=="y"
-        resp=true;
-    else
-        resp=false;
-    end
-end
+% if you want to switch loop order, just reorder terms in layered for loops
+for fi=output.H
+    for rv = output.read_voltage
+        for sc = output.sot_current
+            % set each variable to value
+            set_inst(instr.field,'field IP',fi);
+            set_inst(instr.sot_src,'mA',sc);
+            pause(output.wait_after_H);
+            % measure channel voltage through MTJ for subtraction
+            read_inst_avg(instr.mtj_src,'XI',)
 
-function output=do_RH_loop(instr,output,minH,maxH,stepH)
-    % list of H to sweep through
-    H_points = minH:stepH:maxH; % Oe
-    H_points = [H_points fliplr(H_points)]; % instead of one-way sweep, make hysteresis loop
+            set_inst(instr.mtj_src,'V',rv);
 
-    % apply reset field
-    ramp_inst(instr.field,'field IP',output.reset_field,5);
-    % apply read current
-    set_inst(instr.mtj_src,'V',output.read_voltage);
-    
+            %
+            
+
     f = figure;
     f.Position = [150 200 1150 450];
     if instr.scope_active
