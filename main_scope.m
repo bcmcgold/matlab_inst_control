@@ -4,18 +4,18 @@ close all;
 
 %% set up measurement parameters
 output.chip = cellstr("S2302153_300C_H1");
-output.device = cellstr("6-20");
+output.device = cellstr("8-4");
 output.other_notes = cellstr("");
 output.reset_field = 0; % Oe, applied along easy axis to set state
 output.channel_R = 0; % Ohms
-output.read_voltage = 0.6; % V
+output.read_voltage = 0.8; % V
 output.sense_R = 19.7; % kOhms
-output.gain = 5/2; % divide by 2 to account for attenuation of 50-ohm connection
+output.gain = 10/2; % divide by 2 to account for attenuation of 50-ohm connection
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 output.wait_after_H = 0.5; % s
 
-output.H = -62:0.25:-48; % Oe
+output.H = -66:0.5:-40; % Oe
 
 %% initialize
 instrreset;
@@ -28,7 +28,7 @@ voltmeter = sourcemeter;
 % MCC DAQ for field
 field.obj = daq("mcc");
 field.name = 'daq';
-field.field_factor = 670;
+field.field_factor = 600;
 
 scope_tcp = tcpip("169.254.47.225",80);
 scope = icdevice('lecroy_basic_driver.mdd', scope_tcp);

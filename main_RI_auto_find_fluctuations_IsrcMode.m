@@ -8,12 +8,11 @@ instr.sourcemeter.obj = gpib('ni',0,5); fopen(instr.sourcemeter.obj);
 instr.sourcemeter.name = 2400;
 instr.voltmeter = instr.sourcemeter;
 
-% MCC DAQ for field
-instr.field.obj = daq("mcc");
-instr.field.name = 'daq';
-instr.field.field_factor = 670;
+% current channel for SOT/Oe field
+instr.curr.obj = gpib('ni',0,24); fopen(instr.curr.obj);
+instr.curr.name = 2400;
 
-% connect to motor in case we want to rotate magn1et after measurement
+% connect to motor in case we want to rotate magnet after measurement
 motor.obj = serialport('COM3',9600); pause(2);
 motor.name = 'motor';
 % set_inst(motor,'Angle_simple',xx) reminder of motor turn command
@@ -32,17 +31,15 @@ catch % if scope not connected, set a flag
 end
 
 %%
-output.chip = "S2302153_300C_H1";
-output.device = "4-14";
+output.chip = "S2302153_300C_H4";
+output.device = "6-20";
 output.other_notes = "";
-output.reset_field = 0; % Oe, applied along easy axis to set state
-output.channel_R = 0; % Ohms
-output.read_voltage = 0.6; % V
-output.sense_R = 19.7; % kOhms
+output.read_current = 6; % uA
+output.channel_R = .254; % effective channel R under MTJ, kOhms
 output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
-output.wait_after_H = 0.5; % s
+output.wait_after_I = 0.5; % s
 
 % automatically set up data folders
 date_id = datestr(now,'yyyymmDD');
@@ -51,22 +48,22 @@ mkdir(output.data_folder)
 
 %% iterate over RH sweeps
 do_maj_loop = true; % if true, do one major loop first from init_minH to init_maxH
-init_minH = -100;
-init_maxH = 0;
-init_stepH = (init_maxH-init_minH)/50;
+init_minI = -0.2; % mA
+init_maxI = 0;
+init_stepI = (init_maxI-init_minI)/50;
 if do_maj_loop
-    init_stepH = 2*init_stepH;
+    init_stepI = 2*init_stepI;
 end
-minH = init_minH;
-maxH = init_maxH;
-stepH = init_stepH;
+minI = init_minI;
+maxI = init_maxI;
+stepI = init_stepI;
 
 n_iter = 1; % number of iterations that will run before asking for user feedback
 i_iter = 0;
 
 while true
     if do_maj_loop
-        output = do_RH_loop(instr,output,init_minH,-init_minH,stepH);
+        output = do_RI_loop(instr,output,init_minI,-init_minI,stepI);
         do_maj_loop = false;
         resp=ask_to_continue();
         if resp==true
@@ -75,7 +72,7 @@ while true
             break
         end
     else
-        output = do_RH_loop(instr,output,minH,maxH,stepH);
+        output = do_RI_loop(instr,output,minI,maxI,stepI);
     end
     
     % get min, max, mid V from first (wide) sweep in case hysteresis loop
@@ -86,18 +83,18 @@ while true
         mid_V = (max_V+min_V)/2; % center of V range
     end
     
-    hyst_right_edge = output.H(find(output.V>mid_V,1,'first')); % furthest-right point that passes mid_V
-    hyst_left_edge = output.H(find(output.V>mid_V,1,'last')); % furthest-left point that passes mid_V
+    hyst_right_edge = output.Ichan(find(output.V>mid_V,1,'first')); % furthest-right point that passes mid_V
+    hyst_left_edge = output.Ichan(find(output.V>mid_V,1,'last')); % furthest-left point that passes mid_V
 
-    max_slope = max(abs(diff(output.V)./(output.H(2)-output.H(1)))); % V/Oe
+    max_slope = max(abs(diff(output.V)./(output.Ichan(2)-output.Ichan(1)))); % V/mA
     slope_hyst_left = hyst_left_edge+(min_V-mid_V)/max_slope; % extrapolate left edge of hyst loop according to slope
     slope_hyst_right = hyst_right_edge+(max_V-mid_V)/max_slope; % extrapolate right edge
     hyst_width = slope_hyst_right-slope_hyst_left; % total hysteresis width accounting for hard-axis shapes as well as square loops
     
     % new hysteresis loop parameters
-    minH = slope_hyst_left-0.5*hyst_width;
-    maxH = slope_hyst_right+0.5*hyst_width;
-    stepH = (maxH-minH)/100;
+    minI = slope_hyst_left-0.5*hyst_width;
+    maxI = slope_hyst_right+0.5*hyst_width;
+    stepI = (maxI-minI)/100;
     i_iter = i_iter+1;
     
     % stop condition
@@ -121,15 +118,13 @@ function resp=ask_to_continue()
     end
 end
 
-function output=do_RH_loop(instr,output,minH,maxH,stepH)
-    % list of H to sweep through
-    H_points = minH:stepH:maxH; % Oe
-    H_points = [H_points fliplr(H_points)]; % instead of one-way sweep, make hysteresis loop
+function output=do_RI_loop(instr,output,minI,maxI,stepI)
+    % list of I to sweep through
+    I_points = minI:stepI:maxI; % Oe
+    I_points = [I_points fliplr(I_points)]; % instead of one-way sweep, make hysteresis loop
 
-    % apply reset field
-    ramp_inst(instr.field,'field IP',output.reset_field,5);
     % apply read current
-    set_inst(instr.sourcemeter,'V',output.read_voltage);
+    set_inst(instr.sourcemeter,'mA',output.read_current*1e-3);
     
     f = figure;
     f.Position = [150 200 1150 450];
@@ -139,24 +134,25 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
         htop = animatedline('Marker','o','Color','green');
         hmean = animatedline('Marker','o','Color','black');
         hbase = animatedline('Marker','o','Color','red');
-        xlabel("H (Oe)")
+        xlabel("I_{chan} (mA)")
         ylabel("V_{MTJ} (V)")
         title("Scope output")
         legend('Top','Mean','Base','Location','southeast')
         subplot(1,2,1);
     end
     h = animatedline('Marker','o');
-    xlabel("H (Oe)")
+    xlabel("I_{chan} (mA)")
     ylabel("R_{MTJ} (kohm)")
     title("KE2400 output")
     
-    % ramp from 0 to large field over longer time
-    ramp_inst(instr.field,'field IP',H_points(1),5);
-    for i = 1:length(H_points)
-        ramp_inst(instr.field,'field IP',H_points(i),0.01);
-        pause(output.wait_after_H);
+    % ramp from 0 to large current over longer time
+    ramp_inst(instr.curr,'mA',I_points(1),5);
+    pause(output.wait_after_I)
+    for i = 1:length(I_points)
+        ramp_inst(instr.curr,'mA',I_points(i),0.01);
+        pause(output.wait_after_I)
         
-        output.H(i) = H_points(i);
+        output.Ichan(i) = I_points(i);
         output.t(i) = str2double(datestr(now,'HHMMSS'));
         
         if instr.scope_active
@@ -167,19 +163,23 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
             set(instr.scope.MEAS1,'MeasurementType','mean');
             output.Vmean(i) = get(instr.scope.MEAS1).Value;
             
-            addpoints(htop,output.H(i),output.Vtop(i));
-            addpoints(hbase,output.H(i),output.Vbase(i));
-            addpoints(hmean,output.H(i),output.Vmean(i));
+            addpoints(htop,output.Ichan(i),output.Vtop(i));
+            addpoints(hbase,output.Ichan(i),output.Vbase(i));
+            addpoints(hmean,output.Ichan(i),output.Vmean(i));
         end
-        output.I(i) = 1e3*read_inst_avg(instr.sourcemeter,'XI',output.n_readings,output.wait_between_readings);
-        output.V(i) = output.read_voltage-output.I(i)*output.sense_R;
+        output.V(i) = read_inst_avg(instr.sourcemeter,'XV',output.n_readings,output.wait_between_readings);
 
-        addpoints(h,output.H(i),output.V(i)/output.I(i));
+        addpoints(h,output.Ichan(i),(output.V(i)-output.Ichan(i)*output.channel_R)/output.read_current*1e3);
         drawnow
     end
-    ramp_inst(instr.field,'field IP',0,5);
+    ramp_inst(instr.curr,'mA',0,5);
     
-    save(output.data_folder+output.chip+"_"+output.device+"_RH_"+output.other_notes+"_"+datestr(now,'HHMM')+".mat","output");
+    save(output.data_folder+output.chip+"_"+output.device+"_RI_"+output.other_notes+"_"+datestr(now,'HHMM')+".mat","output");
     % save figure as well
-    saveas(h,output.data_folder+output.chip+"_"+output.device+"_RH_"+output.other_notes+"_"+datestr(now,'HHMM')+".jpg");
+    saveas(h,output.data_folder+output.chip+"_"+output.device+"_RI_"+output.other_notes+"_"+datestr(now,'HHMM')+".jpg");
 end
+
+
+% motor.obj = serialport('COM3',9600); pause(2);
+% motor.name = 'motor';
+% set_inst(motor,'Angle_simple',90);

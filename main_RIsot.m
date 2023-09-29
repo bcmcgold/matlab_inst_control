@@ -3,17 +3,9 @@ clear all;
 close all;
 instrreset;
 
-% use 2400 as MTJ source and voltmeter
-% source V, measure I mode
-instr.mtj_src.obj = gpib('ni',0,5); fopen(instr.mtj_src.obj);
-instr.mtj_src.name = 2400;
-instr.mtj_meter = instr.mtj_src;
-
-% use 2400 as SOT source and voltmeter
-% source I, measure V mode
-instr.mtj_src.obj = gpib('ni',0,5); fopen(instr.mtj_src.obj);
-instr.mtj_src.name = 2400;
-instr.mtj_meter = instr.mtj_src;
+% use 2400 as source
+instr.sourcemeter.obj = gpib('ni',0,5); fopen(instr.sourcemeter.obj);
+instr.sourcemeter.name = 2400;
 
 % MCC DAQ for field
 instr.field.obj = daq("mcc");
@@ -41,14 +33,14 @@ end
 %%
 output.chip = "S2302153_300C_H1";
 output.device = "4-14";
-output.other_notes = "";
+output.other_notes = "Isrc-mode";
 output.reset_field = 0; % Oe, applied along easy axis to set state
-output.read_voltage = 0.8; % V
-output.sense_R = 19.7; % kOhms
-output.gain = 5/2; % divide by 2 to account for attenuation of 50-ohm connection
+output.channel_R = 0; % Ohms
+output.read_current = 20e-3; % mA
+output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
-output.wait_after_I = 0.5; % s
+output.wait_after_H = 0.5; % s
 
 % automatically set up data folders
 date_id = datestr(now,'yyyymmDD');
@@ -135,7 +127,7 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
     % apply reset field
     ramp_inst(instr.field,'field IP',output.reset_field,5);
     % apply read current
-    set_inst(instr.mtj_src,'V',output.read_voltage);
+    set_inst(instr.sourcemeter,'mA',output.read_current);
     
     f = figure;
     f.Position = [150 200 1150 450];
@@ -160,7 +152,7 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
     ramp_inst(instr.field,'field IP',H_points(1),5);
     for i = 1:length(H_points)
         ramp_inst(instr.field,'field IP',H_points(i),0.01);
-        pause(output.wait_after_I);
+        pause(output.wait_after_H);
         
         output.H(i) = H_points(i);
         output.t(i) = str2double(datestr(now,'HHMMSS'));
@@ -177,10 +169,9 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
             addpoints(hbase,output.H(i),output.Vbase(i));
             addpoints(hmean,output.H(i),output.Vmean(i));
         end
-        output.I(i) = 1e3*read_inst_avg(instr.mtj_src,'XI',output.n_readings,output.wait_between_readings);
-        output.V(i) = output.read_voltage-output.I(i)*output.sense_R;
+        output.V(i) = read_inst_avg(instr.sourcemeter,'XV',output.n_readings,output.wait_between_readings);
 
-        addpoints(h,output.H(i),output.V(i)/output.I(i));
+        addpoints(h,output.H(i),output.V(i)/output.read_current);
         drawnow
     end
     ramp_inst(instr.field,'field IP',0,5);
