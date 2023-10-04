@@ -8,19 +8,22 @@ instrreset;
 
 %% measurement parameters
 output.chip = "S2302153_300C_H1";
-output.device = "1-15";
+output.device = "14-12";
 output.other_notes = "";
 output.sense_R = 19.7; % kOhms
-output.channel_R = .327; % kOhms, channel contribution to MTJ resistance (IMPORTANT for synchronizing two sources)
+output.channel_R = .311; % kOhms, channel contribution to MTJ resistance (IMPORTANT for synchronizing two sources)
 output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
-output.H = 0; % Oe
+output.H = -52; % Oe
 output.wait_after_I = 0.5; % s
 output.n_readings = 1;
 output.wait_between_readings = 0; % s
 
 % Vmtj, Isot sweeps
 output.read_voltage = [0.4]; % V
-output.sot_current = linspace(-5,5,10); % mA
+% output.read_voltage = linspace(-.8,.8,20); % V
+% output.read_voltage = [output.read_voltage flip(output.read_voltage)];
+% output.sot_current = [0]; % mA
+output.sot_current = linspace(-2,2,20); % mA
 output.sot_current = [output.sot_current flip(output.sot_current)];
 
 %% connect and set up instruments & files
@@ -57,6 +60,9 @@ try % if scope is connected, use it
     % setting any of MEAS1-4 just changes them all
     set(scope.MEAS1,'Source','channel3')
 
+    % set trigger point to left edge of screen
+    set(scope.acquisition,'Delay',-scope.acquisition.timebase*5);
+
     scope_active = true;
 catch % if scope not connected, set a flag
     scope_active = false;
@@ -80,6 +86,32 @@ for sc=output.sot_current
     xlabel("MTJ voltage (V)")
     ylabel("Rmtj (kOhms)")
 end
+% set up debugging figure
+f_debug = figure;
+f_debug.Position = [150 200 1150 450];
+subplot(1,3,1);
+title("From Vsrc")
+xlabel("Measurement step")
+yyaxis left
+imtj_vsrc_db = animatedline('Marker','o','Color',"#0072BD");
+ylabel("Imtj (mA)")
+yyaxis right
+vmtj_vsrc_db = animatedline('Marker','o','Color',"#D95319");
+ylabel("Vmtj (V)")
+subplot(1,3,2);
+title("From Isrc")
+xlabel("Measurement step")
+vsot_isrc_db = animatedline('Marker','o');
+ylabel("Vsot (V)")
+subplot(1,3,3);
+title("From scope")
+xlabel("Measurement step")
+yyaxis left
+vscope_scope_db = animatedline('Marker','o','Color',"#0072BD");
+ylabel("Vscope (V)")
+yyaxis right
+vmtj_scope_db = animatedline('Marker','o','Color',"#D95319");
+ylabel("Vmtj (V)")
 
 % ramp each source up slowly at first
 ramp_inst(field,'field IP',output.H(1),5);
@@ -102,13 +134,23 @@ for rv = output.read_voltage
         
         % measure
         output.t(i) = str2double(datestr(now,'HHMMSS'));
-        output.I(i) = 1e3*read_inst_avg(mtj_src,'XI',output.n_readings,output.wait_between_readings);
-        output.V(i) = output.read_voltage-output.I(i)*(output.sense_R+output.channel_R);
+        output.I(i) = 1e3*read_inst_avg(mtj_src,'XI',output.n_readings,output.wait_between_readings); % mA
+        output.V(i) = rv-output.I(i)*(output.sense_R+output.channel_R); % note that rv already discounts SOT current contribution
         output.R(i) = output.V(i)/output.I(i);
+        output.Vchan(i) = read_inst(sot_src,'XV'); % V
+        % add points to debug plot
+        addpoints(imtj_vsrc_db,i,output.I(i));
+        addpoints(vmtj_vsrc_db,i,output.V(i));
+        addpoints(vsot_isrc_db,i,output.Vchan(i));
+        drawnow
 
         if scope_active
             % set scope offset & range appropriately
-            set(scope.C3,'Position',-(output.V(i)+output.channel_R*sc));
+            set(scope.C3,'Position',-(output.V(i)+output.channel_R));
+            set(scope.trigger,'Mode','auto');
+            invoke(scope.trigger,'trigger'); % trigger scope
+            while scope.acquisition.state ~= "single" % wait for scope to look for waveform
+            end
 
             set(scope.MEAS1,'MeasurementType','top');
             output.Vtop(i) = get(scope.MEAS1).Value;
@@ -116,7 +158,11 @@ for rv = output.read_voltage
             output.Vbase(i) = get(scope.MEAS1).Value;
             set(scope.MEAS1,'MeasurementType','mean');
             output.Vmean(i) = get(scope.MEAS1).Value;
-            output.R(i) = output.Vmean(i)/output.I(i);
+            output.Vmtj_scope(i)=output.Vmean(i)-(output.I(i)+sc)*output.channel_R;
+            % add points to debug plot
+            addpoints(vscope_scope_db,i,output.Vmean(i));
+            addpoints(vmtj_scope_db,i,output.Vmtj_scope(i));
+            drawnow
         end
         
         % update plots
