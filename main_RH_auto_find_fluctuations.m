@@ -3,41 +3,42 @@ clear all;
 close all;
 instrreset;
 
-% use 2400 as source and instr.voltmeter
+% need to use instr to pass equipment objects to RH loop function
+
+% use 2400 as source
 instr.sourcemeter.obj = gpib('ni',0,5); fopen(instr.sourcemeter.obj);
 instr.sourcemeter.name = 2400;
-instr.voltmeter = instr.sourcemeter;
 
-% MCC DAQ for field
+% MCC DAQ for instr.field
 instr.field.obj = daq("mcc");
 instr.field.name = 'daq';
-instr.field.field_factor = 670;
+instr.field.field_factor = 620;
 
-% connect to motor in case we want to rotate magn1et after measurement
-motor.obj = serialport('COM3',9600); pause(2);
-motor.name = 'motor';
-% set_inst(motor,'Angle_simple',xx) reminder of motor turn command
+% connect to instr.motor in case we want to rotate magn1et after measurement
+instr.motor.obj = serialport('COM3',9600); pause(2);
+instr.motor.name = 'instr.motor';
+% set_inst(instr.motor,'Angle_simple',xx) reminder of instr.motor turn command
 
-try % if scope is connected, use it
-    scope_tcp = tcpip("169.254.47.225",80);
-    instr.scope = icdevice('lecroy_basic_driver.mdd', scope_tcp);
-    connect(instr.scope); % if connect fails: turn TCP on/off on scope
+try % if instr.scope is connected, use it
+    instr.scope_tcp = tcpip("169.254.47.225",80);
+    instr.scope = icdevice('lecroy_basic_driver.mdd', instr.scope_tcp);
+    connect(instr.scope); % if connect fails: turn TCP on/off on instr.scope
     
     % setting any of MEAS1-4 just changes them all
     set(instr.scope.MEAS1,'Source','channel3')
     
     instr.scope_active = true;
-catch % if scope not connected, set a flag
+catch % if instr.scope not connected, set a flag
     instr.scope_active = false;
 end
 
 %%
 output.chip = "S2302153_300C_H1";
-output.device = "4-14";
+output.device = "6-20";
 output.other_notes = "";
 output.reset_field = 0; % Oe, applied along easy axis to set state
 output.channel_R = 0; % Ohms
-output.read_voltage = 0.6; % V
+output.read_voltage = 0.4; % V
 output.sense_R = 19.7; % kOhms
 output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
 output.n_readings = 1;
@@ -49,10 +50,10 @@ date_id = datestr(now,'yyyymmDD');
 output.data_folder = "Brooke_data/"+date_id+"/";
 mkdir(output.data_folder)
 
-%% iterate over RH sweeps
-do_maj_loop = true; % if true, do one major loop first from init_minH to init_maxH
-init_minH = -100;
-init_maxH = 0;
+%% iterate over RH sweep
+do_maj_loop = false; % if true, do one major loop first from init_minH to init_maxH
+init_minH = -20;
+init_maxH = 10;
 init_stepH = (init_maxH-init_minH)/50;
 if do_maj_loop
     init_stepH = 2*init_stepH;
@@ -126,7 +127,7 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
     H_points = minH:stepH:maxH; % Oe
     H_points = [H_points fliplr(H_points)]; % instead of one-way sweep, make hysteresis loop
 
-    % apply reset field
+    % apply reset instr.field
     ramp_inst(instr.field,'field IP',output.reset_field,5);
     % apply read current
     set_inst(instr.sourcemeter,'V',output.read_voltage);
@@ -141,7 +142,7 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
         hbase = animatedline('Marker','o','Color','red');
         xlabel("H (Oe)")
         ylabel("V_{MTJ} (V)")
-        title("Scope output")
+        title("instr.scope output")
         legend('Top','Mean','Base','Location','southeast')
         subplot(1,2,1);
     end
@@ -150,7 +151,7 @@ function output=do_RH_loop(instr,output,minH,maxH,stepH)
     ylabel("R_{MTJ} (kohm)")
     title("KE2400 output")
     
-    % ramp from 0 to large field over longer time
+    % ramp from 0 to large instr.field over longer time
     ramp_inst(instr.field,'field IP',H_points(1),5);
     for i = 1:length(H_points)
         ramp_inst(instr.field,'field IP',H_points(i),0.01);

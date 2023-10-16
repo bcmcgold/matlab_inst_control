@@ -1,6 +1,8 @@
 %% notes & prerequisites
 % scope must be set up on channel 3
 
+% PROBLEM: current reading has spikes when switching occurs
+
 %% initialize
 clear all;
 close all;
@@ -8,22 +10,22 @@ instrreset;
 
 %% measurement parameters
 output.chip = "S2302153_300C_H1";
-output.device = "14-12";
+output.device = "6-20";
 output.other_notes = "";
 output.sense_R = 19.7; % kOhms
-output.channel_R = .311; % kOhms, channel contribution to MTJ resistance (IMPORTANT for synchronizing two sources)
+output.channel_R = .334; % kOhms, channel contribution to MTJ resistance (IMPORTANT for synchronizing two sources)
 output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
 output.H = -52; % Oe
-output.wait_after_I = 0.5; % s
-output.n_readings = 1;
-output.wait_between_readings = 0; % s
+output.wait_after_I = 1; % s
+output.n_readings = 10;
+output.wait_between_readings = 0.1; % s
 
 % Vmtj, Isot sweeps
 output.read_voltage = [0.4]; % V
 % output.read_voltage = linspace(-.8,.8,20); % V
 % output.read_voltage = [output.read_voltage flip(output.read_voltage)];
 % output.sot_current = [0]; % mA
-output.sot_current = linspace(-2,2,20); % mA
+output.sot_current = linspace(-1,1,20); % mA
 output.sot_current = [output.sot_current flip(output.sot_current)];
 
 %% connect and set up instruments & files
@@ -61,7 +63,7 @@ try % if scope is connected, use it
     set(scope.MEAS1,'Source','channel3')
 
     % set trigger point to left edge of screen
-    set(scope.acquisition,'Delay',-scope.acquisition.timebase*5);
+    % set(scope.acquisition,'Delay',-scope.acquisition.timebase*5);
 
     scope_active = true;
 catch % if scope not connected, set a flag
@@ -94,44 +96,40 @@ title("From Vsrc")
 xlabel("Measurement step")
 yyaxis left
 imtj_vsrc_db = animatedline('Marker','o','Color',"#0072BD");
-ylabel("Imtj (mA)")
+ylabel("Imtj read from meter (mA)")
 yyaxis right
 vmtj_vsrc_db = animatedline('Marker','o','Color',"#D95319");
-ylabel("Vmtj (V)")
+ylabel("Vmtj = read V - read I * (Rs+Rchan) (V)")
 subplot(1,3,2);
 title("From Isrc")
 xlabel("Measurement step")
 vsot_isrc_db = animatedline('Marker','o');
-ylabel("Vsot (V)")
+ylabel("Vsot read from meter (V)")
 subplot(1,3,3);
 title("From scope")
 xlabel("Measurement step")
 yyaxis left
 vscope_scope_db = animatedline('Marker','o','Color',"#0072BD");
-ylabel("Vscope (V)")
+ylabel("Mean Vscope (V)")
 yyaxis right
 vmtj_scope_db = animatedline('Marker','o','Color',"#D95319");
-ylabel("Vmtj (V)")
+ylabel("Vmtj = mean Vscope - (Isot+Imtj)*Rchan (V)")
 
-% ramp each source up slowly at first
-ramp_inst(field,'field IP',output.H,5);
-ramp_inst(mtj_src,'V',output.read_voltage(1),5);
-% manually ramp Vmtj and Isot together
-for Isot=linspace(0,output.sot_current(1),10)
-    set_inst(mtj_src,'V',output.read_voltage(1)+output.channel_R*Isot);
-    set_inst(sot_src,'mA',Isot);
-    pause(output.wait_after_I);
-end
+% ramp up field
+ramp_inst(field,'field IP',output.H(1),5);
 
 % if you want to switch loop order, just reorder terms in layered for loops
 i=1; % index for saving output
 for rv = output.read_voltage
     for sc = output.sot_current
         % set currents
-        set_inst(mtj_src,'V',rv+output.channel_R*sc);
         set_inst(sot_src,'mA',sc);
         pause(output.wait_after_I);
-        
+        set_inst(mtj_src,'V',rv+output.channel_R*sc);
+        read_inst(mtj_src,'XI');
+        pause(output.wait_after_I);
+        read_inst(mtj_src,'XI') % first measurement always has an issue after switching current -- clear buffer of bad values
+
         % measure
         output.t(i) = str2double(datestr(now,'HHMMSS'));
         output.I(i) = 1e3*read_inst_avg(mtj_src,'XI',output.n_readings,output.wait_between_readings); % mA
@@ -146,16 +144,14 @@ for rv = output.read_voltage
 
         if scope_active
             % set scope offset & range appropriately
-            set(scope.C3,'Position',-(output.V(i)+output.channel_R));
-            set(scope.trigger,'Mode','auto');
+            scope_position = -(rv+output.channel_R*sc-output.I(i)*output.sense_R);
+            set(scope.C3,'Position',scope_position);
+            set(scope.Trigger1,'Level',-scope_position);
+            % set(scope.trigger,'Mode','single');
             invoke(scope.trigger,'trigger'); % trigger scope
-            while scope.acquisition.state ~= "single" % wait for scope to look for waveform
+            while scope.acquisition.state ~= "stop" % wait for scope to trigger
             end
 
-            set(scope.MEAS1,'MeasurementType','top');
-            output.Vtop(i) = get(scope.MEAS1).Value;
-            set(scope.MEAS1,'MeasurementType','base');
-            output.Vbase(i) = get(scope.MEAS1).Value;
             set(scope.MEAS1,'MeasurementType','mean');
             output.Vmean(i) = get(scope.MEAS1).Value;
             output.Vmtj_scope(i)=output.Vmean(i)-(output.I(i)+sc)*output.channel_R;
@@ -163,6 +159,8 @@ for rv = output.read_voltage
             addpoints(vscope_scope_db,i,output.Vmean(i));
             addpoints(vmtj_scope_db,i,output.Vmtj_scope(i));
             drawnow
+
+            output.R(i)=output.Vmtj_scope(i)/output.I(i);
         end
         
         % update plots

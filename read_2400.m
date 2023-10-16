@@ -14,7 +14,7 @@ function output = read_2400(inst_obj,read_mode)
             temp_str = fscanf(inst_obj);
             temp_num_ar = str2num(temp_str);
             output = temp_num_ar(2);
-        case {'XV'}
+        case {'XV','V'}
             fprintf(inst_obj,':READ?');
             temp_str = fscanf(inst_obj);
             temp_num_ar = str2num(temp_str);
