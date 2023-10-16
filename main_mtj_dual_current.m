@@ -114,7 +114,7 @@ vmtj_scope_db = animatedline('Marker','o','Color',"#D95319");
 ylabel("Vmtj (V)")
 
 % ramp each source up slowly at first
-ramp_inst(field,'field IP',output.H(1),5);
+ramp_inst(field,'field IP',output.H,5);
 ramp_inst(mtj_src,'V',output.read_voltage(1),5);
 % manually ramp Vmtj and Isot together
 for Isot=linspace(0,output.sot_current(1),10)
