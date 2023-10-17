@@ -8,18 +8,18 @@ instrreset;
 
 %% measurement parameters
 output.chip = "S2302153_300C_H1";
-output.device = "6-20";
+output.device = "1-18";
 output.other_notes = "";
 output.sense_R = 19.7; % kOhms
-output.channel_R = .334; % kOhms, channel contribution to MTJ resistance (IMPORTANT for synchronizing two sources)
+output.channel_R = .336; % kOhms, channel contribution to MTJ resistance (IMPORTANT for synchronizing two sources)
 output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
-output.H = -52; % Oe
+output.H = -49; % Oe
 output.wait_after_I = 1; % s
 output.n_readings = 10;
 output.wait_between_readings = 0.1; % s
 
 % Vmtj, Isot sweeps
-output.mtj_current = [10e-3]; % mA
+output.mtj_current = [30e-3]; % mA
 % output.mtj_current = linspace(-.8,.8,20); % mA
 % output.mtj_current = [output.mtj_current flip(output.mtj_current)];
 % output.sot_current = [0]; % mA
@@ -166,4 +166,4 @@ set_inst(sot_src,'mA',0);
 save(output.data_folder+output.chip+"_"+output.device+"_DualI_"+output.other_notes+"_"+datestr(now,'HHMM')+".mat","output");
 % save figures
 saveas(f,output.data_folder+output.chip+"_"+output.device+"_DualI_"+output.other_notes+"_"+datestr(now,'HHMM')+".jpg");
-saveas(f_debug,"Debug_"+output.data_folder+output.chip+"_"+output.device+"_DualI_"+output.other_notes+"_"+datestr(now,'HHMM')+".jpg");
+saveas(f_debug,output.data_folder+output.chip+"_"+output.device+"_Debug_DualI_"+output.other_notes+"_"+datestr(now,'HHMM')+".jpg");
