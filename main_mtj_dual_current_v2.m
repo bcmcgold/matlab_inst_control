@@ -11,15 +11,15 @@ output.chip = "S2302153_300C_H1";
 output.device = "1-18";
 output.other_notes = "";
 output.sense_R = 19.7; % kOhms
-output.channel_R = .336; % kOhms, channel contribution to MTJ resistance (IMPORTANT for synchronizing two sources)
+output.channel_R = .334; % kOhms, channel contribution to MTJ resistance (IMPORTANT for synchronizing two sources)
 output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
-output.H = -49; % Oe
-output.wait_after_I = 1; % s
-output.n_readings = 10;
+output.H = -31; % Oe
+output.wait_after_I = 0.5; % s
+output.n_readings = 1;
 output.wait_between_readings = 0.1; % s
 
 % Vmtj, Isot sweeps
-output.mtj_current = [30e-3]; % mA
+output.mtj_current = [-26e-3]; % mA
 % output.mtj_current = linspace(-.8,.8,20); % mA
 % output.mtj_current = [output.mtj_current flip(output.mtj_current)];
 % output.sot_current = [0]; % mA
@@ -125,19 +125,25 @@ for mc = output.mtj_current
 
         % adjust scope parameters
         Voffset = read_inst(mtj_src,'XV'); % V from channel
-        scope_trig = Voffset + Vmtj/2;
+        scope_trig = Voffset + Vmtj;
+        if Vmtj > 0
+            scope_trig = scope_trig-get(scope.C3,'Scale')*2;
+        else
+            scope_trig = scope_trig+get(scope.C3,'Scale')*2;
+        end
         set(scope.Trigger1,'Level',scope_trig);
         set(scope.C3,'Position',-Voffset-Vmtj)
 
         % trigger scope and pulse current
         invoke(scope.trigger,'trigger');
+        pause(0.5);
         set_inst(mtj_src,'mA',mc);
         while scope.acquisition.state ~= "stop" % wait for scope to trigger
         end
 
         set(scope.MEAS1,'MeasurementType','mean');
         output.Vmean(i) = get(scope.MEAS1).Value/output.gain;
-        output.Vmtj_scope(i)=output.Vmean(i)-(sc+mc)*output.channel_R; % V
+        output.Vmtj_scope(i)=output.Vmean(i)-Voffset-mc*output.channel_R; % V
         % add points to debug plot
         addpoints(vscope_scope_db,i,output.Vmean(i));
         addpoints(vmtj_scope_db,i,output.Vmtj_scope(i));
@@ -146,7 +152,7 @@ for mc = output.mtj_current
         % measure
         output.t(i) = str2double(datestr(now,'HHMMSS'));
         output.Vmtj_raw(i) = read_inst_avg(mtj_src,'XV',output.n_readings,output.wait_between_readings); % V
-        output.Vmtj_subtr(i) = output.Vmtj_raw(i)-mc*output.sense_R-(sc+mc)*output.channel_R; % V
+        output.Vmtj_subtr(i) = output.Vmtj_raw(i)-mc*output.sense_R-Voffset-mc*output.channel_R; % V
         output.Vchan(i) = read_inst(sot_src,'XV'); % V
         % add points to debug plot
         addpoints(mtj_vsrc_db,i,output.Vmtj_raw(i));
