@@ -59,7 +59,7 @@ connect(scope); % if connect fails: turn TCP on/off on scope
 % setting any of MEAS1-4 just changes them all
 set(scope.MEAS1,'Source','channel3')
 % set trigger point to left edge of screen
-% set(scope.acquisition,'Delay',-scope.acquisition.timebase*5);
+set(scope.acquisition,'Delay',-scope.acquisition.timebase*5);
 
 %% iterate over all combinations of variables, measure, and plot
 % set up figure and animated lines
@@ -109,32 +109,29 @@ ylabel("Vmtj = (Mean Vscope) - (Isot+Imtj)*Rchan (V)")
 % ramp up field
 ramp_inst(field,'field IP',output.H(1),5);
 
-% if you want to switch loop order, just reorder terms in layered for loops
 i=1; % index for saving output
 for mc = output.mtj_current
+    % first, take a reading of MTJ current alone
+    ramp_inst(sot_src,'mA',0,5);
+    set_inst(mtj_src,'mA',mc);
+    pause(output.wait_after_I);
+    Vmtj=read_inst(mtj_src,'XV')-output.sense_R*mc;
+    set_inst(mtj_src,'mA',0);
+    ramp_inst(sot_src,'mA',output.sot_current(1),5);
     for sc = output.sot_current
-        % set currents
+        % set SOT current
         set_inst(sot_src,'mA',sc);
-        set_inst(mtj_src,'mA',mc);
         pause(output.wait_after_I);
 
-        % measure
-        output.t(i) = str2double(datestr(now,'HHMMSS'));
-        output.Vmtj_raw(i) = read_inst_avg(mtj_src,'XV',output.n_readings,output.wait_between_readings); % V
-        output.Vmtj_subtr(i) = output.Vmtj_raw(i)-mc*output.sense_R-(sc+mc)*output.channel_R; % V
-        output.Vchan(i) = read_inst(sot_src,'XV'); % V
-        % add points to debug plot
-        addpoints(mtj_vsrc_db,i,output.Vmtj_raw(i));
-        addpoints(mtj_vsubtr_db,i,output.Vmtj_subtr(i));
-        addpoints(vsot_isrc_db,i,output.Vchan(i));
-        drawnow
+        % adjust scope parameters
+        Voffset = read_inst(mtj_src,'XV'); % V from channel
+        scope_trig = Voffset + Vmtj/2;
+        set(scope.Trigger1,'Level',scope_trig);
+        set(scope.C3,'Position',-Voffset-Vmtj)
 
-        % set scope offset & range appropriately
-        scope_position = output.Vmtj_raw(i)-mc*output.sense_R;
-        set(scope.C3,'Position',-scope_position);
-        set(scope.Trigger1,'Level',scope_position);
-        % set(scope.trigger,'Mode','single');
-        invoke(scope.trigger,'trigger'); % trigger scope
+        % trigger scope and pulse current
+        invoke(scope.trigger,'trigger');
+        set_inst(mtj_src,'mA',mc);
         while scope.acquisition.state ~= "stop" % wait for scope to trigger
         end
 
@@ -145,6 +142,27 @@ for mc = output.mtj_current
         addpoints(vscope_scope_db,i,output.Vmean(i));
         addpoints(vmtj_scope_db,i,output.Vmtj_scope(i));
         drawnow
+        
+        % measure
+        output.t(i) = str2double(datestr(now,'HHMMSS'));
+        output.Vmtj_raw(i) = read_inst_avg(mtj_src,'XV',output.n_readings,output.wait_between_readings); % V
+        output.Vmtj_subtr(i) = output.Vmtj_raw(i)-mc*output.sense_R-(sc+mc)*output.channel_R; % V
+        output.Vchan(i) = read_inst(sot_src,'XV'); % V
+        % add points to debug plot
+        addpoints(mtj_vsrc_db,i,output.Vmtj_raw(i));
+        addpoints(mtj_vsubtr_db,i,output.Vmtj_subtr(i));
+        addpoints(vsot_isrc_db,i,output.Vchan(i));
+        drawnow
+        set_inst(mtj_src,'mA',0)
+
+        % % set scope offset & range appropriately
+        % scope_position = output.Vmtj_raw(i)-mc*output.sense_R;
+        % set(scope.C3,'Position',-scope_position);
+        % set(scope.Trigger1,'Level',scope_position);
+        % % set(scope.trigger,'Mode','single');
+        % invoke(scope.trigger,'trigger'); % trigger scope
+        % while scope.acquisition.state ~= "stop" % wait for scope to trigger
+        % end
 
         output.R(i)=output.Vmtj_scope(i)/mc;
         
