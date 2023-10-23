@@ -34,12 +34,12 @@ end
 instr.scope_active=false% change in future. scope is just too slow right now
 
 %%
-output.chip = "S2302153_300C_H1";
-output.device = "1-18";
+output.chip = "S2302153_300C_H1_";
+output.device = "7-18";
 output.other_notes = "";
 output.reset_field = 0; % Oe, applied along easy axis to set state
 output.channel_R = 0; % Ohms
-output.read_current = 30e-3; % mA
+output.read_current = 20e-3; % mA
 output.sense_R = 19.7; % kOhms
 output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
 output.n_readings = 1;
@@ -52,9 +52,9 @@ output.data_folder = "Brooke_data/"+date_id+"/";
 mkdir(output.data_folder)
 
 %% iterate over RH sweep
-do_maj_loop = false; % if true, do one major loop first from init_minH to init_maxH
-init_minH = -60;
-init_maxH = -30;
+do_maj_loop = true; % if true, do one major loop first from init_minH to init_maxH
+init_minH = -100;
+init_maxH = 0;
 init_stepH = (init_maxH-init_minH)/50;
 if do_maj_loop
     init_stepH = 2*init_stepH;
