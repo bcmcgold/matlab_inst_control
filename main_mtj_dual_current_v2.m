@@ -8,23 +8,21 @@ instrreset;
 
 %% measurement parameters
 output.chip = "S2302153_300C_H1";
-output.device = "1-18";
+output.device = "5-17";
 output.other_notes = "";
 output.sense_R = 19.7; % kOhms
-output.channel_R = .334; % kOhms, channel contribution to MTJ resistance (IMPORTANT for synchronizing two sources)
 output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
-output.H = -31; % Oe
+output.H = -47; % Oe
 output.wait_after_I = 0.5; % s
 output.n_readings = 1;
 output.wait_between_readings = 0.1; % s
 
 % Vmtj, Isot sweeps
-output.mtj_current = [-26e-3]; % mA
+output.mtj_current = [20e-3]; % mA
 % output.mtj_current = linspace(-.8,.8,20); % mA
 % output.mtj_current = [output.mtj_current flip(output.mtj_current)];
 % output.sot_current = [0]; % mA
-output.sot_current = linspace(-1,1,20); % mA
-output.sot_current = [output.sot_current flip(output.sot_current)];
+output.sot_current = linspace(-2,2,25); % mA
 
 %% connect and set up instruments & files
 % automatically set up data folders
@@ -143,7 +141,7 @@ for mc = output.mtj_current
 
         set(scope.MEAS1,'MeasurementType','mean');
         output.Vmean(i) = get(scope.MEAS1).Value/output.gain;
-        output.Vmtj_scope(i)=output.Vmean(i)-Voffset-mc*output.channel_R; % V
+        output.Vmtj_scope(i)=output.Vmean(i)-Voffset-mc; % V
         % add points to debug plot
         addpoints(vscope_scope_db,i,output.Vmean(i));
         addpoints(vmtj_scope_db,i,output.Vmtj_scope(i));
@@ -152,7 +150,7 @@ for mc = output.mtj_current
         % measure
         output.t(i) = str2double(datestr(now,'HHMMSS'));
         output.Vmtj_raw(i) = read_inst_avg(mtj_src,'XV',output.n_readings,output.wait_between_readings); % V
-        output.Vmtj_subtr(i) = output.Vmtj_raw(i)-mc*output.sense_R-Voffset-mc*output.channel_R; % V
+        output.Vmtj_subtr(i) = output.Vmtj_raw(i)-mc*output.sense_R-Voffset-mc; % V
         output.Vchan(i) = read_inst(sot_src,'XV'); % V
         % add points to debug plot
         addpoints(mtj_vsrc_db,i,output.Vmtj_raw(i));
