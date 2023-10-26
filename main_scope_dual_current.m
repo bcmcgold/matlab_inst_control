@@ -1,53 +1,61 @@
-%% notes & prerequisites
-% scope must be set up on channel 3
-% manually set desired horizontal & vertical scales
+%% prerequisites -- check every time or code may not work as intended
+% scope setup:
+%   -scope must be set up on channel 3
+%   -manually set desired horizontal & vertical scales
+%   -data saves onto external hard drive connected to scope
+%
 % set up file saving:
 %   -Format: binary
 %   -Auto Save: fill (first, set scope trigger to stop so it doesn't start saving early)
 %   -Directory: you choose
 %   -Note starting file below ("Next file will be saved to:" field on scope)
-% possible issues:
-%   -if scope vertical range is set too large then it won't trigger
-%   -if scope range is too small (5 mV) then maximum offset is 750 mV. make
-%   sure DC component doesn't go over this or else we can't capture data
-%   (or increase range)
+%
+% observed issues:
+%   -scope triggers on MTJ pulse, so if scope vertical range is set too
+%   large then it won't trigger
+%   -when scope range is small the maximum DC offset is limited. ensure DC
+%   component won't go over offset limit for chosen scope range
+%   -be careful of above especially when setting gain > 2/2
 
 %% initialize
 clear all;
 close all;
 instrreset;
 
+%% set up files
+% automatically set up data folders
+date_id = datestr(now,'yyyymmDD');
+data_folder = "Brooke_data/"+date_id+"/";
+mkdir(data_folder)
+
+% make log file if it doesn't exist yet
+log_file_path = data_folder+"scope_file_log.csv";
+if ~isfile(log_file_path)
+    writelines("File ID,Chip,Device,Sense R,Gain,Wait After I,N Readings,Wait Between Readings,H Oe,MTJ Current mA,SOT Current mA,t,Vmtj_raw V,Vmtj_subtr V,Vchan V,Vmean V,Vmtj_scope V,R kOhms",log_file_path);
+end
+
 %% measurement parameters
-output.chip = cellstr("S2302153_300C_H1");
-output.device = cellstr("4-14");
-output.other_notes = cellstr("");
-output.starting_file = cellstr("C3100249");
-output.sense_R = 19.7; % kOhms
-output.gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
-output.H = -49; % Oe
-output.wait_after_I = 0.5; % s
-output.n_readings = 1;
-output.wait_between_readings = 0.1; % s
+chip = "S2302153_300C_H1";
+device = "4-14";
+starting_file = 0; % ID associated with trc file ("C31xxxxx.trc"), where xxxxx is the ID
+sense_R = 19.7; % kOhms
+gain = 2/2; % divide by 2 to account for attenuation of 50-ohm connection
+H = -49; % Oe
+wait_after_I = 0.5; % s
+n_readings = 1;
+wait_between_readings = 0.1; % s
 
 % make user confirm starting file
-x = input("Confirm: starting file is "+output.starting_file{1}+".trc? Y/N [Y]: ","s");
+x = input("Confirm: starting file is "+starting_file{1}+".trc? Y/N [Y]: ","s");
 if ~(isempty(x) || x=="Y" || x=="y")
     return
 end
 
 % Vmtj, Isot sweeps
-output.mtj_current = linspace(6,18,4)*1e-3; % mA
-% output.mtj_current = linspace(-.8,.8,20); % mA
-% output.mtj_current = [output.mtj_current flip(output.mtj_current)];
-% output.sot_current = [0]; % mA
-output.sot_current = linspace(-1.5,1.5,25); % mA
+mtj_current = linspace(6,18,4)*1e-3; % mA
+sot_current = linspace(-1.5,1.5,25); % mA
 
-%% connect and set up instruments & files
-% automatically set up data folders
-date_id = datestr(now,'yyyymmDD');
-data_folder = "Brooke_data/"+date_id+"/"+output.starting_file{1}+"/";
-mkdir(data_folder)
-
+%% connect and set up instruments
 % use one 2400 as source and voltmeter on MTJ
 % source voltage/measure current mode
 mtj_src.obj = gpib('ni',0,5); fopen(mtj_src.obj);
@@ -78,26 +86,17 @@ set(scope.MEAS1,'Source','channel3')
 set(scope.acquisition,'Delay',-scope.acquisition.timebase*5);
 
 %% iterate over all combinations of variables, measure, and plot
-% pre-allocate memory to avoid matlab freezing
-n_meas_steps = numel(output.mtj_current)*numel(output.sot_current);
-output.t = zeros(1,n_meas_steps);
-output.Imtj = zeros(1,n_meas_steps);
-output.Vmtj_raw = zeros(1,n_meas_steps);
-output.Vmtj_subtr = zeros(1,n_meas_steps);
-output.Ichan = zeros(1,n_meas_steps);
-output.Vchan = zeros(1,n_meas_steps);
-output.Vmean = zeros(1,n_meas_steps);
-output.Vmtj_scope = zeros(1,n_meas_steps);
-output.R = zeros(1,n_meas_steps);
+% color order for plots
+figure;
+C = colororder;
 
 % ramp up field
-ramp_inst(field,'field IP',output.H,5);
+ramp_inst(field,'field IP',H,5);
 
 i=1; % index for saving output
-for mc = output.mtj_current
-    % make one figure per mtj current
-    figure;
-    h = animatedline('Marker','o');
+for mc = mtj_current
+    % make one line per mtj current
+    line = animatedline('Marker','o','Color',C(mod(i-1,size(C,1))+1,:));
     xlabel("I_{SOT} (mA)")
     ylabel("R_{MTJ} (kohm)")
     title("I_{MTJ}="+mc+"mA")
@@ -105,20 +104,20 @@ for mc = output.mtj_current
     % first, take a reading of MTJ current alone
     ramp_inst(sot_src,'mA',0,5);
     set_inst(mtj_src,'mA',mc);
-    pause(output.wait_after_I);
-    Vmtj=read_inst(mtj_src,'XV')-output.sense_R*mc;
+    pause(wait_after_I);
+    Vmtj=read_inst(mtj_src,'XV')-sense_R*mc;
     set_inst(mtj_src,'mA',0);
     % TODO: add a check for if trigger amplitude is too large for Vmtj (was
     % a problem at 2 uA)
-    ramp_inst(sot_src,'mA',output.sot_current(1),5);
-    for sc = output.sot_current
+    ramp_inst(sot_src,'mA',sot_current(1),5);
+    for sc = sot_current
         % set SOT current
         set_inst(sot_src,'mA',sc);
-        pause(output.wait_after_I);
+        pause(wait_after_I);
 
         % adjust scope parameters
         Voffset = read_inst(mtj_src,'XV'); % V from channel
-        signal_level = output.gain*(Voffset + Vmtj);
+        signal_level = gain*(Voffset + Vmtj);
         if mc > 0 % when mtj current pulses, signal will rise
             scope_trig = signal_level-get(scope.C3,'Scale')*3;
         else % when mtj current pulses, signal will fall
@@ -130,54 +129,46 @@ for mc = output.mtj_current
         % trigger scope and pulse current
         invoke(scope.trigger,'trigger');
         pause(0.5); % give scope time to settle in
-        tic;
         set_inst(mtj_src,'mA',mc);
 
         % measure from Keithley (helps for finding errors)
-        pause(output.wait_after_I);
-        output.t(i) = str2double(datestr(now,'HHMMSS'));
-        output.Imtj(i) = mc;
-        output.Vmtj_raw(i) = read_inst_avg(mtj_src,'XV',output.n_readings,output.wait_between_readings); % V
-        output.Vmtj_subtr(i) = output.Vmtj_raw(i)-mc*output.sense_R-Voffset; % V
-        output.Ichan(i) = sc;
-        output.Vchan(i) = read_inst(sot_src,'XV'); % V
+        pause(wait_after_I);
+        t = str2double(datestr(now,'HHMMSS'));
+        Vmtj_raw = read_inst_avg(mtj_src,'XV',n_readings,wait_between_readings); % V
+        Vmtj_subtr = Vmtj_raw-mc*sense_R-Voffset; % V
+        Vchan = read_inst(sot_src,'XV'); % V
 
         % keep waiting if needed for scope to trigger
         while scope.acquisition.state ~= "stop" % wait for scope to trigger
         end
         % scope will save automatically at this time
         % saving binary data is almost instantaneous so no pause needed
+
         set_inst(mtj_src,'mA',0)
                 
         % measure mean V from scope
         set(scope.MEAS1,'MeasurementType','mean');
-        output.Vmean(i) = get(scope.MEAS1).Value/output.gain;
-        output.Vmtj_scope(i)=output.Vmean(i)-Voffset; % V
+        Vmean_scope = get(scope.MEAS1).Value/gain;
+        Vmtj_scope = Vmean_scope-Voffset; % V
 
-        % save scope data after setting Imtj to zero
-        % because this takes a while, not worth leaving Imtj on when it
-        % could potentially wear out or heat up device
-        % [scopedata.y, scopedata.t] = invoke(scope.waveform, 'readwaveform', 'channel3');
-        % save(data_folder+strrep(sprintf("timetrace_H%gOe_Imtj%gmA_Ichan%gmA_n%d",output.H,mc,sc,i),'.','p')+".mat","scopedata");
-        % clear scopedata
-        toc
-
-        output.R(i)=output.Vmtj_scope(i)/mc;
+        R = Vmtj_scope/mc;
         
         % update plot
-        addpoints(h,sc,output.R(i));
+        addpoints(line,sc,R);
         drawnow
+
+        % write line to log file
+        writelines(join([starting_file+i-1,chip,device,sense_R,gain,wait_after_I,n_readings,wait_between_readings,H,mc,sc,t,Vmtj_raw,Vmtj_subtr,Vchan,Vmean_scope,Vmtj_scope,R],","),log_file_path,WriteMode="append");
 
         % increment counter
         i=i+1;
     end
 end
 
+% save figure
+saveas(line,data_folder+chip+"_"+device+"_DualI_"+datestr(now,'HHMM')+".jpg");
+
 % ramp down sources
 ramp_inst(field,'field IP',0,5);
 ramp_inst(mtj_src,'mA',0,5);
 ramp_inst(sot_src,'mA',0,5);
-    
-save(data_folder+output.chip+"_"+output.device+"_DualI_"+output.other_notes+"_"+datestr(now,'HHMM')+".mat","output");
-% save figures
-saveas(h,data_folder+output.chip+"_"+output.device+"_DualI_"+output.other_notes+"_"+datestr(now,'HHMM')+".jpg");
